@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MT5 Account Monitor</title>
+  <meta name="description" content="Read-only MetaTrader 5 account monitor">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div><div class="eyebrow">TRADING OVERVIEW</div><h1>MT5 Account Monitor</h1></div>
+    <div class="top-actions"><span id="connection" class="status"><i></i> Not connected</span><button id="refreshBtn" class="secondary">Refresh</button></div>
+  </header>
+  <main>
+    <section class="login-panel panel">
+      <div><h2>Connect to your monitor</h2><p>Enter your Cloudflare Worker API URL and dashboard PIN. The PIN is sent only with the dashboard request; it is not saved by this page.</p></div>
+      <form id="connectForm">
+        <label>Worker API URL<input id="apiUrl" type="url" placeholder="https://mt5-account-monitor-api.YOURNAME.workers.dev" required></label>
+        <label>Dashboard PIN<input id="pin" type="password" placeholder="Enter your dashboard PIN" required autocomplete="current-password"></label>
+        <button type="submit">Connect</button>
+      </form>
+      <p id="message" class="message" role="status">No account data loaded yet.</p>
+    </section>
+
+    <section class="summary-grid" id="summaryGrid">
+      <article class="metric panel"><span>Accounts</span><strong id="accountCount">—</strong><small>Connected accounts</small></article>
+      <article class="metric panel"><span>Total balance</span><strong id="totalBalance">—</strong><small>Across loaded accounts</small></article>
+      <article class="metric panel"><span>Total equity</span><strong id="totalEquity">—</strong><small>Balance plus floating P/L</small></article>
+      <article class="metric panel"><span>Floating P/L</span><strong id="totalFloating">—</strong><small>Open trades only</small></article>
+      <article class="metric panel"><span>Today's realized P/L</span><strong id="totalToday">—</strong><small>Closed deals reported by EA</small></article>
+    </section>
+
+    <section class="panel section-panel"><div class="section-heading"><div><h2>Accounts</h2><p>Latest snapshots received from your MT5 EA</p></div><span id="lastUpdated" class="muted">Last updated: —</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Login / Server</th><th>Currency</th><th>Balance</th><th>Equity</th><th>Floating P/L</th><th>Today's P/L</th><th>Open trades</th><th>Last received</th></tr></thead><tbody id="accountsBody"><tr><td colspan="8" class="empty">Connect to load accounts.</td></tr></tbody></table></div>
+    </section>
+
+    <section class="panel section-panel"><div class="section-heading"><div><h2>Open positions</h2><p>Positions across all connected accounts</p></div><span id="positionCount" class="muted">0 positions</span></div>
+      <div class="table-wrap"><table><thead><tr><th>Account</th><th>Symbol</th><th>Side</th><th>Volume</th><th>Open price</th><th>Current price</th><th>Stop loss</th><th>Take profit</th><th>Profit</th></tr></thead><tbody id="positionsBody"><tr><td colspan="9" class="empty">No positions loaded.</td></tr></tbody></table></div>
+    </section>
+    <footer>Read-only monitor • Data is provided by your MT5 terminal and may be delayed. This page does not place trades.</footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
