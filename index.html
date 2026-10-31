@@ -3,43 +3,86 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MT5 Account Monitor</title>
-  <meta name="description" content="Read-only MetaTrader 5 account monitor">
+  <title>MT5 Monitor — Admin</title>
+  <meta name="description" content="Administrator dashboard for MT5 monitor client approvals">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <div><div class="eyebrow">TRADING OVERVIEW</div><h1>MT5 Account Monitor</h1></div>
-    <div class="top-actions"><span id="connection" class="status"><i></i> Not connected</span><button id="refreshBtn" class="secondary">Refresh</button></div>
+    <div>
+      <div class="eyebrow">PRIVATE ADMINISTRATION</div>
+      <h1>MT5 Monitor Admin</h1>
+      <p class="subtitle">Manage client registrations and individual MT5 account approvals.</p>
+    </div>
+    <div class="top-actions">
+      <span id="connection" class="status"><i></i> Not connected</span>
+      <button id="refreshBtn" class="secondary" disabled>Refresh</button>
+      <button id="logoutBtn" class="secondary" hidden>Log out</button>
+    </div>
   </header>
+
   <main>
-    <section class="login-panel panel">
-      <div><h2>Connect to your monitor</h2><p>Enter your Cloudflare Worker API URL and dashboard PIN. The PIN is sent only with the dashboard request; it is not saved by this page.</p></div>
-      <form id="connectForm">
-        <label>Worker API URL<input id="apiUrl" type="url" placeholder="https://mt5-account-monitor-api.YOURNAME.workers.dev" required></label>
-        <label>Dashboard PIN<input id="pin" type="password" placeholder="Enter your dashboard PIN" required autocomplete="current-password"></label>
-        <button type="submit">Connect</button>
+    <section class="panel login-panel" id="loginPanel">
+      <div>
+        <h2>Administrator login</h2>
+        <p>Connect to your Cloudflare Worker and sign in with your administrator password. The password and session token are kept only in this page's memory.</p>
+      </div>
+      <form id="loginForm">
+        <label>Worker API URL
+          <input id="apiUrl" type="url" value="https://monitor.mt5dashboard.workers.dev" placeholder="https://your-worker.workers.dev" required>
+        </label>
+        <label>Administrator password
+          <input id="adminPassword" type="password" placeholder="Enter ADMIN_PASSWORD" required autocomplete="current-password">
+        </label>
+        <button type="submit" id="loginBtn">Connect &amp; log in</button>
+        <p id="loginMessage" class="message" role="status">Not connected.</p>
       </form>
-      <p id="message" class="message" role="status">No account data loaded yet.</p>
     </section>
 
-    <section class="summary-grid" id="summaryGrid">
-      <article class="metric panel"><span>Accounts</span><strong id="accountCount">—</strong><small>Connected accounts</small></article>
-      <article class="metric panel"><span>Total balance</span><strong id="totalBalance">—</strong><small>Across loaded accounts</small></article>
-      <article class="metric panel"><span>Total equity</span><strong id="totalEquity">—</strong><small>Balance plus floating P/L</small></article>
-      <article class="metric panel"><span>Floating P/L</span><strong id="totalFloating">—</strong><small>Open trades only</small></article>
-      <article class="metric panel"><span>Today's realized P/L</span><strong id="totalToday">—</strong><small>Closed deals reported by EA</small></article>
+    <section id="adminArea" hidden>
+      <section class="summary-grid">
+        <article class="metric panel"><span>Clients</span><strong id="clientCount">0</strong><small>Registered clients</small></article>
+        <article class="metric panel"><span>Requested accounts</span><strong id="accountCount">0</strong><small>Across all clients</small></article>
+        <article class="metric panel"><span>Pending</span><strong id="pendingCount">0</strong><small>Waiting for review</small></article>
+        <article class="metric panel"><span>Approved</span><strong id="approvedCount">0</strong><small>Active account approvals</small></article>
+        <article class="metric panel"><span>Revoked / rejected</span><strong id="inactiveCount">0</strong><small>Not currently approved</small></article>
+      </section>
+
+      <section class="panel section-panel">
+        <div class="section-heading">
+          <div><h2>Client registrations</h2><p>Review each MT5 account separately. Approving an account issues its individual EA upload token.</p></div>
+          <div class="filters">
+            <input id="searchInput" type="search" placeholder="Search client, login, server…">
+            <select id="statusFilter" aria-label="Filter by status">
+              <option value="All">All statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
+              <option value="Revoked">Revoked</option>
+            </select>
+          </div>
+        </div>
+        <div id="clientsList" class="clients-list">
+          <div class="empty-state">Log in to load client registrations.</div>
+        </div>
+      </section>
+      <p id="adminMessage" class="message" role="status"></p>
     </section>
 
-    <section class="panel section-panel"><div class="section-heading"><div><h2>Accounts</h2><p>Latest snapshots received from your MT5 EA</p></div><span id="lastUpdated" class="muted">Last updated: —</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Login / Server</th><th>Currency</th><th>Balance</th><th>Equity</th><th>Floating P/L</th><th>Today's P/L</th><th>Open trades</th><th>Last received</th></tr></thead><tbody id="accountsBody"><tr><td colspan="8" class="empty">Connect to load accounts.</td></tr></tbody></table></div>
+    <section class="panel token-panel" id="tokenPanel" hidden>
+      <div class="section-heading">
+        <div><h2>New credentials — copy and save now</h2><p>These values are shown only in this response. Store them securely and provide each EA token only to its matching MT5 account.</p></div>
+        <button id="closeTokenBtn" class="secondary">Close</button>
+      </div>
+      <div class="token-content">
+        <label>Client private-link token <div class="copy-row"><textarea id="privateLinkToken" rows="2" readonly></textarea><button data-copy="privateLinkToken" class="secondary copy-btn">Copy</button></div></label>
+        <label>EA upload token for this approved account <div class="copy-row"><textarea id="eaUploadToken" rows="2" readonly></textarea><button data-copy="eaUploadToken" class="secondary copy-btn">Copy</button></div></label>
+        <p class="warning">The private-link token gives access to this client's approved dashboard accounts. The EA upload token is specific to the account just approved. Do not post either token publicly.</p>
+      </div>
     </section>
-
-    <section class="panel section-panel"><div class="section-heading"><div><h2>Open positions</h2><p>Positions across all connected accounts</p></div><span id="positionCount" class="muted">0 positions</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Account</th><th>Symbol</th><th>Side</th><th>Volume</th><th>Open price</th><th>Current price</th><th>Stop loss</th><th>Take profit</th><th>Profit</th></tr></thead><tbody id="positionsBody"><tr><td colspan="9" class="empty">No positions loaded.</td></tr></tbody></table></div>
-    </section>
-    <footer>Read-only monitor • Data is provided by your MT5 terminal and may be delayed. This page does not place trades.</footer>
   </main>
+
+  <footer>MT5 Account Monitor • Admin access only • Read-only trading data</footer>
   <script src="app.js"></script>
 </body>
 </html>
