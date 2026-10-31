@@ -3,6 +3,16 @@ const $ = (id) => document.getElementById(id);
 let apiUrl = "";
 let adminToken = "";
 let clients = [];
+
+// Keep the admin session across page refreshes in this tab only.
+// The Worker still enforces 30-minute inactivity and 8-hour maximum limits.
+const ADMIN_SESSION_KEY = "mt5MonitorAdminSession";
+function saveAdminSession() {
+  if (adminToken && apiUrl) sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ token: adminToken, apiUrl }));
+}
+function clearAdminSession() {
+  sessionStorage.removeItem(ADMIN_SESSION_KEY);
+}
 let busy = false;
 
 function escapeHtml(value) {
@@ -63,6 +73,7 @@ async function login(event) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `Login failed (HTTP ${response.status})`);
     adminToken = data.token;
+    saveAdminSession();
     $("adminPassword").value = "";
     $("loginPanel").hidden = true;
     $("adminArea").hidden = false;
@@ -72,6 +83,7 @@ async function login(event) {
     await loadClients();
   } catch (e) {
     adminToken = "";
+    clearAdminSession();
     $("loginMessage").textContent = e.message;
     setStatus("Connection issue", "error");
   } finally {
@@ -212,6 +224,7 @@ async function accountAction(button) {
 
 function logout(showMessage = true) {
   adminToken = "";
+  clearAdminSession();
   clients = [];
   $("adminArea").hidden = true;
   $("loginPanel").hidden = false;
@@ -246,3 +259,24 @@ document.querySelectorAll("[data-copy]").forEach(button => {
     }
   });
 });
+
+
+// Restore a session after refresh in the same browser tab.
+(async function restoreAdminSession() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || "null");
+    if (!saved || !saved.token || !saved.apiUrl) return;
+    apiUrl = String(saved.apiUrl).replace(/\/+$/, "");
+    adminToken = saved.token;
+    $("apiUrl").value = apiUrl;
+    $("loginPanel").hidden = true;
+    $("adminArea").hidden = false;
+    $("refreshBtn").disabled = false;
+    $("logoutBtn").hidden = false;
+    setStatus("Checking admin session…");
+    await loadClients();
+  } catch (e) {
+    logout(false);
+    $("loginMessage").textContent = "Your admin session expired. Please log in again.";
+  }
+})();
