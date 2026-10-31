@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MT5 Account Monitor — Client Registration</title>
+<style>
+:root{color-scheme:dark;--bg:#0a1020;--panel:#111a2d;--line:#26334b;--text:#eef3ff;--muted:#9caac2;--blue:#82aaff;--green:#37d39a;--red:#ff6f7d}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#15213b 0,#0a1020 58%);color:var(--text);font:14px/1.5 Inter,system-ui,Segoe UI,sans-serif}
+header{padding:25px clamp(16px,4vw,48px);border-bottom:1px solid #1d2940}main{max-width:960px;margin:30px auto;padding:0 16px 40px}
+.eyebrow{font-size:11px;letter-spacing:.18em;color:var(--blue);font-weight:800}h1{font-size:clamp(24px,4vw,34px);margin:5px 0}h2{font-size:19px;margin:0 0 8px}p{color:var(--muted);margin:0}
+.panel{background:linear-gradient(145deg,#131e33,#101829);border:1px solid var(--line);border-radius:14px;padding:22px;margin-bottom:18px}
+label{display:block;font-weight:650;font-size:13px;margin-bottom:6px}.field{min-width:0}input{width:100%;background:#080f1d;border:1px solid #30405d;border-radius:8px;color:var(--text);padding:12px;font:inherit;outline:none}input:focus{border-color:var(--blue);box-shadow:0 0 0 2px #82aaff22}
+.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.account{border:1px solid #2b3a55;background:#0c1527;border-radius:11px;padding:16px;margin-top:13px}.accounthead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}.accounthead strong{font-size:14px}.accountgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+button{border:0;border-radius:8px;background:#7395ff;color:#071022;font-weight:800;padding:11px 16px;cursor:pointer;font:inherit}button.secondary{background:#202e47;color:var(--text);border:1px solid #34435f}button.remove{background:#3b2431;color:#ffb4bd;border:1px solid #70404e;padding:7px 10px;font-size:12px}button:disabled{opacity:.55;cursor:not-allowed}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:17px}.hint{font-size:12px;margin-top:7px}.message{display:none;padding:14px;border-radius:9px;margin-top:16px;white-space:pre-wrap}.message.success{display:block;background:#103327;border:1px solid #23634b;color:#9af0c9}.message.error{display:block;background:#3b2029;border:1px solid #75404c;color:#ffc0c8}.count{font-size:12px;color:var(--muted)}
+@media(max-width:700px){.formgrid,.accountgrid{grid-template-columns:1fr}.panel{padding:16px}.accounthead{align-items:flex-start}}
+</style>
+</head>
+<body>
+<header><div class="eyebrow">CLIENT REGISTRATION</div><h1>MT5 Account Monitor</h1><p>Register your details and submit your MT5 accounts for administrator review.</p></header>
+<main>
+<form id="registrationForm" novalidate>
+<section class="panel">
+<h2>Client information</h2><p>Enter the name and email address the administrator can use to identify and contact you.</p>
+<div class="formgrid" style="margin-top:16px">
+<div class="field"><label for="clientName">Client display name *</label><input id="clientName" name="displayName" maxlength="80" required placeholder="Your name or company"></div>
+<div class="field"><label for="email">Email address (optional)</label><input id="email" name="email" type="email" maxlength="160" placeholder="you@example.com"></div>
+</div>
+</section>
+<section class="panel">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h2>MT5 accounts</h2><p>Add every MT5 account you want to register. Each account is reviewed separately.</p></div><span class="count" id="accountCount">1 / 50 accounts</span></div>
+<div id="accounts"></div>
+<div class="actions"><button type="button" class="secondary" id="addAccount">+ Add another account</button></div>
+<p class="hint">Use the exact MT5 login number and broker server shown in your MetaTrader 5 account. Account display name is your own label, for example “Exness Real 1”.</p>
+</section>
+<section class="panel">
+<h2>Before submitting</h2>
+<p>Your registration will be marked Pending. You cannot connect an account to the dashboard until the administrator approves that specific account. Do not enter your MT5 password or investor password here.</p>
+<div class="actions"><button id="submitButton" type="submit">Submit registration</button></div>
+<div id="message" class="message" role="status" aria-live="polite"></div>
+</section>
+</form>
+</main>
+<script>
+(() => {
+  const API = "https://monitor.mt5dashboard.workers.dev";
+  const $ = id => document.getElementById(id);
+  const accounts = $("accounts");
+  let nextId = 1;
+  const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function updateCount() {
+    const count = accounts.querySelectorAll(".account").length;
+    $("accountCount").textContent = `${count} / 50 accounts`;
+    $("addAccount").disabled = count >= 50;
+    accounts.querySelectorAll(".remove").forEach(button => button.disabled = count === 1);
+  }
+  function addAccount() {
+    const count = accounts.querySelectorAll(".account").length;
+    if (count >= 50) return;
+    const id = nextId++;
+    const card = document.createElement("div");
+    card.className = "account";
+    card.dataset.accountId = id;
+    card.innerHTML = `
+      <div class="accounthead"><strong>MT5 account ${count + 1}</strong><button type="button" class="remove">Remove</button></div>
+      <div class="accountgrid">
+        <div class="field"><label for="accountName${id}">Account display name *</label><input id="accountName${id}" data-field="displayName" maxlength="80" required placeholder="e.g. Exness Real 1"></div>
+        <div class="field"><label for="login${id}">MT5 login number *</label><input id="login${id}" data-field="login" inputmode="numeric" maxlength="20" required placeholder="e.g. 12345678"></div>
+        <div class="field"><label for="server${id}">Broker server *</label><input id="server${id}" data-field="server" maxlength="120" required placeholder="e.g. Exness-MT5Real"></div>
+      </div>`;
+    card.querySelector(".remove").addEventListener("click", () => { card.remove(); renumber(); });
+    accounts.appendChild(card);
+    renumber();
+    card.querySelector('[data-field="displayName"]').focus();
+  }
+  function renumber() {
+    [...accounts.querySelectorAll(".account")].forEach((card, index) => {
+      card.querySelector(".accounthead strong").textContent = `MT5 account ${index + 1}`;
+    });
+    updateCount();
+  }
+  function showMessage(text, kind) {
+    const box = $("message");
+    box.textContent = text;
+    box.className = `message ${kind}`;
+  }
+  $("addAccount").addEventListener("click", addAccount);
+  $("registrationForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const button = $("submitButton");
+    const displayName = $("clientName").value.trim();
+    const email = $("email").value.trim();
+    const rows = [...accounts.querySelectorAll(".account")];
+    const requested = rows.map(card => ({
+      displayName: card.querySelector('[data-field="displayName"]').value.trim(),
+      login: card.querySelector('[data-field="login"]').value.trim(),
+      server: card.querySelector('[data-field="server"]').value.trim()
+    }));
+    if (!displayName) return showMessage("Please enter your client display name.", "error");
+    if (email && !$("email").checkValidity()) return showMessage("Please enter a valid email address, or leave it blank.", "error");
+    for (let i = 0; i < requested.length; i++) {
+      const a = requested[i];
+      if (!a.displayName || !a.server || !/^\d{1,20}$/.test(a.login))
+        return showMessage(`Please complete account ${i + 1}. The MT5 login must contain numbers only.`, "error");
+    }
+    const unique = new Set(requested.map(a => `${a.login}|${a.server.trim().toLowerCase()}`));
+    if (unique.size !== requested.length) return showMessage("The same MT5 login and broker server appears more than once. Please remove the duplicate.", "error");
+    button.disabled = true;
+    button.textContent = "Submitting…";
+    showMessage("Sending your registration securely…", "success");
+    try {
+      const response = await fetch(API + "/api/client/register", {
+        method: "POST",
+        headers: {"Content-Type":"application/json","Accept":"application/json"},
+        body: JSON.stringify({displayName, email, accounts: requested})
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Registration failed (HTTP ${response.status}).`);
+      $("registrationForm").reset();
+      accounts.innerHTML = "";
+      nextId = 1;
+      addAccount();
+      showMessage(`Registration received successfully.\nClient reference: ${data.clientId || "received"}\nAccounts submitted: ${data.requestedAccounts ?? requested.length}\nStatus: Pending\n\nThe administrator must approve each account before it can connect. Keep your client reference for your records.`, "success");
+    } catch (error) {
+      showMessage(error.message || "Unable to submit registration. Please try again.", "error");
+    } finally {
+      button.disabled = false;
+      button.textContent = "Submit registration";
+    }
+  });
+  addAccount();
+})();
+</script>
+</body>
+</html>
