@@ -111,9 +111,9 @@
     $("accountsOpen").textContent=`${totals.accountsOpen}/${snapshots.length} accounts open`;
   }
 
-  async function refresh() {
-    if (!accounts.length) { notice("Add an MT5 account first."); return; }
-    $("refreshBtn").disabled=true; $("refreshBtn").textContent="Refreshing…";
+  async function refresh(silent=false) {
+    if (!accounts.length) { if(!silent) notice("Add an MT5 account first."); return; }
+    if(!silent){ $("refreshBtn").disabled=true; $("refreshBtn").textContent="Refreshing…"; }
     try {
       const response = await fetch(`${WORKER_URL.replace(/\/$/,"")}/api/snapshots`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({accounts})
@@ -123,9 +123,44 @@
       snapshots = result.snapshots || [];
       render();
       const missing = result.invalidCount || 0;
-      notice(`Updated ${snapshots.length} of ${accounts.length} accounts.${missing ? ` ${missing} account(s) could not be verified.` : ""}`);
-    } catch (e) { notice(`Refresh failed: ${e.message}`,true); }
-    finally { $("refreshBtn").disabled=false; $("refreshBtn").textContent="↻ Refresh"; }
+      if(!silent) notice(`Updated ${snapshots.length} of ${accounts.length} accounts.${missing ? ` ${missing} account(s) could not be verified.` : ""}`);
+    } catch (e) { if(!silent) notice(`Refresh failed: ${e.message}`,true); }
+    finally { if(!silent){ $("refreshBtn").disabled=false; $("refreshBtn").textContent="↻ Refresh"; } }
+  }
+
+
+  // Browser viewer lease: EA keeps uploading only while this lease is renewed.
+  let viewerStarted=false;
+  async function sessionRequest(path, keepalive=false) {
+    if(!accounts.length) return;
+    try {
+      await fetch(`${WORKER_URL.replace(/\/$/,"")}${path}`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({accounts}), keepalive
+      });
+    } catch (e) { /* Lease expires automatically if the browser disconnects. */ }
+  }
+  async function startViewer() {
+    if(!accounts.length) return;
+    await sessionRequest("/api/session/start"); viewerStarted=true;
+    await refresh(true);
+  }
+  function stopViewer() {
+    // Do not revoke the shared account lease from one tab; it expires 45 seconds
+    // after the last visible tab heartbeat. This supports multiple open tabs.
+    viewerStarted=false;
+  }
+  let heartbeatTimer=null, refreshTimer=null;
+  function enableViewer() {
+    if(!accounts.length) return;
+    startViewer();
+    if(!heartbeatTimer) heartbeatTimer=setInterval(()=>sessionRequest("/api/session/heartbeat"),15000);
+    if(!refreshTimer) refreshTimer=setInterval(()=>refresh(true),2000);
+  }
+  function disableViewer() {
+    stopViewer();
+    if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;}
+    if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;}
   }
 
   $("addBtn").addEventListener("click",()=>$ ("addDialog").showModal());
@@ -138,12 +173,19 @@
     if(accounts.some(a=>a.login===login&&a.server===server)){notice("This account is already in your list.",true);return;}
     accounts.push({login,server,keycode}); saveAccounts(accounts);
     $("addForm").reset(); $("addDialog").close(); snapshots=[]; render();
-    notice("Account added. Make sure its MT5 monitoring EA is running, then press Refresh.");
+    notice("Account added. Waiting for the MT5 monitoring EA.");
+    if(document.visibilityState==="visible") enableViewer();
   });
   $("accountsBody").addEventListener("click",(event)=>{
     const button=event.target.closest("[data-remove]"); if(!button)return;
     accounts.splice(Number(button.dataset.remove),1); saveAccounts(accounts); snapshots=[]; render(); notice("Account removed from this browser.");
+    disableViewer(); if(accounts.length && document.visibilityState==="visible") enableViewer();
   });
-  $("refreshBtn").addEventListener("click",refresh);
+  $("refreshBtn").addEventListener("click",()=>refresh(false));
+  document.addEventListener("visibilitychange",()=>{
+    if(document.visibilityState==="visible") enableViewer(); else disableViewer();
+  });
+  window.addEventListener("pagehide",()=>disableViewer());
   render();
+  if(document.visibilityState==="visible") enableViewer();
 })();
