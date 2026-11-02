@@ -1,7 +1,7 @@
 (() => {
   "use strict";
   // Change this to your deployed Cloudflare Worker URL.
-  const WORKER_URL = "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev";
+  const WORKER_URL = "https://monitor.mt5dashboard.workers.dev";
   const STORAGE_KEY = "mt5_client_monitor_accounts_v1";
   const $ = (id) => document.getElementById(id);
   const money = (value, currency) => {
