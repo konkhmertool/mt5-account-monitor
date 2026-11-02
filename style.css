@@ -36,7 +36,7 @@ thead{background:#121f32}
 th{padding:13px 14px;text-align:left;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--border)}
 td{padding:14px;border-bottom:1px solid #23334a;white-space:nowrap;font-size:14px}
 tbody tr:last-child td{border-bottom:0}
-.account-name{font-size:14px;font-weight:750;color:var(--text)}
+.account-name{font-size:14px;font-weight:750;color:var(--text);display:flex;align-items:center;gap:8px}.status-dot{display:inline-block;flex:0 0 9px;width:9px;height:9px;border-radius:50%;vertical-align:middle}.status-dot.online{background:var(--green);box-shadow:0 0 7px #35d39a88}.status-dot.offline{background:var(--red);box-shadow:0 0 7px #ff647888}
 .muted{color:var(--muted);font-size:12px;margin-top:3px}
 .remove{display:block;padding:0;margin-top:6px;border:0;background:none;color:#ff7b8b;font-size:12px;cursor:pointer}
 .waiting{font-size:12px;color:#d7ad59;margin-top:5px}

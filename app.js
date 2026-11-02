@@ -67,6 +67,11 @@
     el.classList.toggle("negative", colored && number(value) < 0);
     el.classList.toggle("neutral", colored && number(value) === 0);
   }
+  function isSnapshotLive(snapshot) {
+    const stamp = Date.parse(snapshot?.updatedAt || "");
+    return Number.isFinite(stamp) && Date.now() - stamp <= 15000 && Date.now() >= stamp - 5000;
+  }
+
   function render() {
     const body = $("accountsBody");
     if (!accounts.length) {
@@ -77,23 +82,25 @@
     }
     const byKey = new Map(snapshots.map(s => [`${s.login}|${s.server}`,s]));
     const totals = {today:0,week:0,month:0,all:0,float:0,balance:0,equity:0,margin:0,free:0,positions:0,accountsOpen:0};
+    // A snapshot older than 15 seconds is stale: the MT5 terminal/EA is offline.
     body.innerHTML = accounts.map((a,i) => {
       const s = byKey.get(`${a.login}|${a.server}`);
-      if (!s) return `<tr><td><div class="account-name">${esc(a.displayName || a.login)}</div><div class="muted">${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button><div class="waiting">Waiting for MT5 data</div></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
+      if (!s) return `<tr><td><div class="account-name"><span class="status-dot offline" aria-label="Offline"></span>${esc(a.displayName || a.login)}</div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>0.00</td></tr>`;
       const currency = s.currency || "";
+      const live = isSnapshotLive(s);
+      const floating = live ? number(s.floating) : 0;
       totals.today += toUSC(s.today,currency); totals.week += toUSC(s.week,currency); totals.month += toUSC(s.month,currency);
-      totals.all += toUSC(s.allTime,currency); totals.float += toUSC(s.floating,currency); totals.balance += toUSC(s.balance,currency);
+      totals.all += toUSC(s.allTime,currency); totals.float += live ? toUSC(floating,currency) : 0; totals.balance += toUSC(s.balance,currency);
       totals.equity += toUSC(s.equity,currency); totals.margin += toUSC(s.margin,currency); totals.free += toUSC(s.freeMargin,currency);
-      totals.positions += number(s.openPositions);
-      if (number(s.openPositions) > 0) totals.accountsOpen += 1;
+      if (live) { totals.positions += number(s.openPositions); if (number(s.openPositions) > 0) totals.accountsOpen += 1; }
       return `<tr>
-        <td><div class="account-name">${esc(s.displayName || a.displayName || a.login)}</div><div class="muted">${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td>
+        <td><div class="account-name"><span class="status-dot ${live ? "online" : "offline"}" aria-label="${live ? "Online" : "Offline"}" title="${live ? "Live MT5 data" : "MT5 data is stale"}"></span>${esc(s.displayName || a.displayName || a.login)}</div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td>
         <td>${money(s.balance,currency)}</td>
         <td class="${profitClass(s.today)}">${money(s.today,currency)}</td>
         <td class="${profitClass(s.week)}">${money(s.week,currency)}</td>
         <td class="${profitClass(s.month)}">${money(s.month,currency)}</td>
         <td class="${profitClass(s.allTime)}">${money(s.allTime,currency)}</td>
-        <td class="${profitClass(s.floating)}">${money(s.floating,currency)}</td>
+        <td class="${profitClass(floating)}">${money(floating,currency)}</td>
       </tr>`;
     }).join("");
     // All combined dashboard cards use USC so USD and USC accounts can be added correctly.
@@ -108,7 +115,8 @@
     setMoney("marginUsed",totals.margin,totalCurrency);
     setMoney("freeMargin",totals.free,totalCurrency);
     $("openPositions").textContent=String(totals.positions);
-    $("accountsOpen").textContent=`${totals.accountsOpen}/${snapshots.length} accounts open`;
+    const liveAccounts = accounts.filter(a => isSnapshotLive(byKey.get(`${a.login}|${a.server}`))).length;
+    $("accountsOpen").textContent=`${totals.accountsOpen}/${liveAccounts} live accounts open`;
   }
 
   async function refresh(silent=false) {
