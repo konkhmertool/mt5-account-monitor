@@ -46,9 +46,9 @@
       <div class="dialog-head"><div><h2>Add MT5 Account</h2><p>Enter the details shown by the monitoring EA.</p></div><button type="button" class="close" id="closeDialog">×</button></div>
       <label>MT5 Account Number<input id="loginInput" inputmode="numeric" required placeholder="e.g. 12345678"></label>
       <label>Broker Server<input id="serverInput" required placeholder="e.g. Exness-MT5Real"></label>
-      <label>12-character Keycode<input id="keyInput" required minlength="12" maxlength="12" autocomplete="off" placeholder="Copy from the EA chart"></label>
+      <label>6-digit Keycode<input id="keyInput" required minlength="6" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" autocomplete="off" placeholder="Copy from the EA chart"></label>
       <div class="dialog-actions"><button type="button" id="cancelBtn" class="button">Cancel</button><button type="submit" class="button primary">Add Account</button></div>
-      <p class="hint">The account is saved only in this browser. If browser storage is cleared, add it again using the same Keycode.</p>
+      <p class="hint">The account is saved only in this browser. If browser storage is cleared, add it again using the same 6-digit Keycode.</p>
     </form>
   </dialog>
   <script src="app.js"></script>

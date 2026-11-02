@@ -1,7 +1,7 @@
 (() => {
   "use strict";
-  // Change this to your deployed Cloudflare Worker URL.  
-  const WORKER_URL = "https://monitor.mt5dashboard.workers.dev";
+  // Change this to your deployed Cloudflare Worker URL.
+  const WORKER_URL = "https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev";
   const STORAGE_KEY = "mt5_client_monitor_accounts_v1";
   const $ = (id) => document.getElementById(id);
   const money = (value, currency) => {
@@ -73,7 +73,7 @@
   $("addForm").addEventListener("submit",(event)=>{
     event.preventDefault();
     const login=$("loginInput").value.trim(), server=$("serverInput").value.trim(), keycode=$("keyInput").value.trim().toUpperCase();
-    if(!/^[A-Z0-9]{12}$/.test(keycode)){notice("Keycode must be exactly 12 letters/numbers.",true);return;}
+    if(!/^\d{6}$/.test(keycode)){notice("Keycode must be exactly 6 digits.",true);return;}
     if(accounts.some(a=>a.login===login&&a.server===server)){notice("This account is already in your list.",true);return;}
     accounts.push({login,server,keycode}); saveAccounts(accounts);
     $("addForm").reset(); $("addDialog").close(); snapshots=[]; render();
