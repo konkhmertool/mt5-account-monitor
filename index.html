@@ -11,7 +11,9 @@
   <header class="topbar">
     <div class="brand"><div class="brand-mark">M</div><div><strong>MT5 Client Monitor</strong><small>Account overview</small></div></div>
     <div class="top-actions">
-      <button id="refreshBtn" class="button primary">↻ Refresh</button>
+      <div id="connectionStatus" class="connection-status connecting" role="status" aria-live="polite">
+        <span class="connection-dot">•</span><span class="connection-text">Connecting...</span>
+      </div>
       <button id="addBtn" class="button">＋ Add Account</button>
     </div>
   </header>
