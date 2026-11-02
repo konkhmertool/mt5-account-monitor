@@ -16,7 +16,23 @@
     </div>
   </header>
   <main class="wrap">
-    <div id="notice" class="notice" role="status">Add an MT5 account to get started.</div>
+    <div class="range-toolbar" aria-label="Profit date range">
+      <div class="range-presets" role="group" aria-label="Quick date ranges">
+        <button type="button" class="range-btn active" data-range="today">Today</button>
+        <button type="button" class="range-btn" data-range="yesterday">Yesterday</button>
+        <button type="button" class="range-btn" data-range="thisWeek">This week</button>
+        <button type="button" class="range-btn" data-range="lastWeek">Last week</button>
+        <button type="button" class="range-btn" data-range="thisMonth">This month</button>
+        <button type="button" class="range-btn" data-range="lastMonth">Last month</button>
+      </div>
+      <div class="custom-range">
+        <label for="dateFrom">From</label>
+        <input type="date" id="dateFrom">
+        <label for="dateTo">To</label>
+        <input type="date" id="dateTo">
+      </div>
+    </div>
+    <div id="notice" class="sr-only" role="status" aria-live="polite"></div>
     <section class="summary-grid">
       <article class="metric"><span>Today's Profit</span><strong id="todayProfit">—</strong></article>
       <article class="metric"><span>This Week</span><strong id="weekProfit">—</strong></article>
@@ -39,7 +55,7 @@
       <article class="metric"><span>Total Equity</span><strong id="totalEquity">—</strong></article>
       <article class="metric"><span>Margin Used</span><strong id="marginUsed">—</strong></article>
       <article class="metric"><span>Free Margin</span><strong id="freeMargin">—</strong></article>
-      <article class="metric"><span>Open Positions</span><strong id="openPositions">—</strong></article>
+      <article class="metric open-position-metric"><span>Open Positions</span><div class="open-position-value"><strong id="openPositions">—</strong><span id="accountsOpen">0/0 accounts open</span></div></article>
     </section>
     <footer>MT5 Client Monitor · Version 1 · Data is supplied by the monitoring EA running in MT5.</footer>
   </main>

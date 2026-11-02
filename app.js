@@ -10,11 +10,51 @@
     return `${sign}${Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} ${currency || ""}`.trim();
   };
   const profitClass = (value) => number(value) > 0 ? "positive" : number(value) < 0 ? "negative" : "neutral";
+  // Normalize USD and USC account values into USC for combined dashboard totals.
+  // 1 USD = 100 USC. Individual account rows continue to show native currency.
+  const toUSC = (value, currency) => {
+    const amount = number(value);
+    const code = String(currency || "").trim().toUpperCase();
+    if (code === "USD") return amount * 100;
+    if (code === "USC") return amount;
+    return amount;
+  };
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const loadAccounts = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; } };
   const saveAccounts = (a) => localStorage.setItem(STORAGE_KEY, JSON.stringify(a));
   let accounts = loadAccounts();
   let snapshots = [];
+  let selectedRange = "today";
+
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const toDateInput = (date) => `${date.getFullYear()}-${pad2(date.getMonth()+1)}-${pad2(date.getDate())}`;
+  function setDateRange(from, to, rangeName) {
+    $("dateFrom").value = toDateInput(from);
+    $("dateTo").value = toDateInput(to);
+    selectedRange = rangeName || "custom";
+    document.querySelectorAll(".range-btn").forEach(btn =>
+      btn.classList.toggle("active", btn.dataset.range === selectedRange));
+  }
+  function applyPreset(name) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = today.getDay();
+    let from = new Date(today), to = new Date(today);
+    if (name === "yesterday") {
+      from.setDate(from.getDate()-1); to = new Date(from);
+    } else if (name === "thisWeek") {
+      from.setDate(from.getDate() - ((day + 6) % 7));
+    } else if (name === "lastWeek") {
+      from.setDate(from.getDate() - ((day + 6) % 7) - 7);
+      to = new Date(from); to.setDate(to.getDate()+6);
+    } else if (name === "thisMonth") {
+      from = new Date(today.getFullYear(), today.getMonth(), 1);
+    } else if (name === "lastMonth") {
+      from = new Date(today.getFullYear(), today.getMonth()-1, 1);
+      to = new Date(today.getFullYear(), today.getMonth(), 0);
+    }
+    setDateRange(from, to, name);
+  }
 
   function notice(message, error=false) {
     $("notice").textContent = message;
@@ -32,18 +72,20 @@
     if (!accounts.length) {
       body.innerHTML = '<tr><td colspan="7" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr>';
       ["todayProfit","weekProfit","monthProfit","allProfit","floating","totalBalance","totalEquity","marginUsed","freeMargin","openPositions"].forEach(id => { $(id).textContent="—"; $(id).classList.remove("positive","negative","neutral"); });
+      $("accountsOpen").textContent="0/0 accounts open";
       return;
     }
     const byKey = new Map(snapshots.map(s => [`${s.login}|${s.server}`,s]));
-    const totals = {today:0,week:0,month:0,all:0,float:0,balance:0,equity:0,margin:0,free:0,positions:0};
+    const totals = {today:0,week:0,month:0,all:0,float:0,balance:0,equity:0,margin:0,free:0,positions:0,accountsOpen:0};
     body.innerHTML = accounts.map((a,i) => {
       const s = byKey.get(`${a.login}|${a.server}`);
       if (!s) return `<tr><td><div class="account-name">${esc(a.displayName || a.login)}</div><div class="muted">${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button><div class="waiting">Waiting for MT5 data</div></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>`;
       const currency = s.currency || "";
-      totals.today += number(s.today); totals.week += number(s.week); totals.month += number(s.month);
-      totals.all += number(s.allTime); totals.float += number(s.floating); totals.balance += number(s.balance);
-      totals.equity += number(s.equity); totals.margin += number(s.margin); totals.free += number(s.freeMargin);
+      totals.today += toUSC(s.today,currency); totals.week += toUSC(s.week,currency); totals.month += toUSC(s.month,currency);
+      totals.all += toUSC(s.allTime,currency); totals.float += toUSC(s.floating,currency); totals.balance += toUSC(s.balance,currency);
+      totals.equity += toUSC(s.equity,currency); totals.margin += toUSC(s.margin,currency); totals.free += toUSC(s.freeMargin,currency);
       totals.positions += number(s.openPositions);
+      if (number(s.openPositions) > 0) totals.accountsOpen += 1;
       return `<tr>
         <td><div class="account-name">${esc(s.displayName || a.displayName || a.login)}</div><div class="muted">${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td>
         <td>${money(s.balance,currency)}</td>
@@ -54,17 +96,19 @@
         <td class="${profitClass(s.floating)}">${money(s.floating,currency)}</td>
       </tr>`;
     }).join("");
-    const currency = snapshots[0]?.currency || "";
-    setMoney("todayProfit",totals.today,currency,true);
-    setMoney("weekProfit",totals.week,currency,true);
-    setMoney("monthProfit",totals.month,currency,true);
-    setMoney("allProfit",totals.all,currency,true);
-    setMoney("floating",totals.float,currency,true);
-    setMoney("totalBalance",totals.balance,currency);
-    setMoney("totalEquity",totals.equity,currency);
-    setMoney("marginUsed",totals.margin,currency);
-    setMoney("freeMargin",totals.free,currency);
+    // All combined dashboard cards use USC so USD and USC accounts can be added correctly.
+    const totalCurrency = "USC";
+    setMoney("todayProfit",totals.today,totalCurrency,true);
+    setMoney("weekProfit",totals.week,totalCurrency,true);
+    setMoney("monthProfit",totals.month,totalCurrency,true);
+    setMoney("allProfit",totals.all,totalCurrency,true);
+    setMoney("floating",totals.float,totalCurrency,true);
+    setMoney("totalBalance",totals.balance,totalCurrency);
+    setMoney("totalEquity",totals.equity,totalCurrency);
+    setMoney("marginUsed",totals.margin,totalCurrency);
+    setMoney("freeMargin",totals.free,totalCurrency);
     $("openPositions").textContent=String(totals.positions);
+    $("accountsOpen").textContent=`${totals.accountsOpen}/${snapshots.length} accounts open`;
   }
 
   async function refresh() {
@@ -79,7 +123,7 @@
       snapshots = result.snapshots || [];
       render();
       const missing = result.invalidCount || 0;
-      notice(`Updated ${snapshots.length} of ${accounts.length} account(s). ${missing ? `${missing} account(s) could not be verified. `:""}Snapshot times are shown in the table.`);
+      notice(`Updated ${snapshots.length} of ${accounts.length} accounts.${missing ? ` ${missing} account(s) could not be verified.` : ""}`);
     } catch (e) { notice(`Refresh failed: ${e.message}`,true); }
     finally { $("refreshBtn").disabled=false; $("refreshBtn").textContent="↻ Refresh"; }
   }
