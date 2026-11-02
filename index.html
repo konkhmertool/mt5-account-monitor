@@ -3,86 +3,54 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>MT5 Monitor — Admin</title>
-  <meta name="description" content="Administrator dashboard for MT5 monitor client approvals">
+  <meta name="theme-color" content="#101827">
+  <title>MT5 Client Monitor</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <div>
-      <div class="eyebrow">PRIVATE ADMINISTRATION</div>
-      <h1>MT5 Monitor Admin</h1>
-      <p class="subtitle">Manage client registrations and individual MT5 account approvals.</p>
-    </div>
+    <div class="brand"><div class="brand-mark">M</div><div><strong>MT5 Client Monitor</strong><small>Account overview</small></div></div>
     <div class="top-actions">
-      <span id="connection" class="status"><i></i> Not connected</span>
-      <button id="refreshBtn" class="secondary" disabled>Refresh</button>
-      <button id="logoutBtn" class="secondary" hidden>Log out</button>
+      <button id="refreshBtn" class="button primary">↻ Refresh</button>
+      <button id="addBtn" class="button">＋ Add Account</button>
     </div>
   </header>
-
-  <main>
-    <section class="panel login-panel" id="loginPanel">
-      <div>
-        <h2>Administrator login</h2>
-        <p>Connect to your Cloudflare Worker and sign in with your administrator password. The password and session token are kept only in this page's memory.</p>
-      </div>
-      <form id="loginForm">
-        <label>Worker API URL
-          <input id="apiUrl" type="url" value="https://monitor.mt5dashboard.workers.dev" placeholder="https://your-worker.workers.dev" required>
-        </label>
-        <label>Administrator password
-          <input id="adminPassword" type="password" placeholder="Enter ADMIN_PASSWORD" required autocomplete="current-password">
-        </label>
-        <button type="submit" id="loginBtn">Connect &amp; log in</button>
-        <p id="loginMessage" class="message" role="status">Not connected.</p>
-      </form>
+  <main class="wrap">
+    <div id="notice" class="notice" role="status">Add an MT5 account to get started.</div>
+    <section class="summary-grid">
+      <article class="metric"><span>Today's Profit</span><strong id="todayProfit">—</strong></article>
+      <article class="metric"><span>This Week</span><strong id="weekProfit">—</strong></article>
+      <article class="metric"><span>This Month</span><strong id="monthProfit">—</strong></article>
+      <article class="metric"><span>All-Time Closed Profit</span><strong id="allProfit">—</strong></article>
+      <article class="metric"><span>Floating P/L</span><strong id="floating">—</strong></article>
     </section>
-
-    <section id="adminArea" hidden>
-      <section class="summary-grid">
-        <article class="metric panel"><span>Clients</span><strong id="clientCount">0</strong><small>Registered clients</small></article>
-        <article class="metric panel"><span>Requested accounts</span><strong id="accountCount">0</strong><small>Across all clients</small></article>
-        <article class="metric panel"><span>Pending</span><strong id="pendingCount">0</strong><small>Waiting for review</small></article>
-        <article class="metric panel"><span>Approved</span><strong id="approvedCount">0</strong><small>Active account approvals</small></article>
-        <article class="metric panel"><span>Revoked / rejected</span><strong id="inactiveCount">0</strong><small>Not currently approved</small></article>
-      </section>
-
-      <section class="panel section-panel">
-        <div class="section-heading">
-          <div><h2>Client registrations</h2><p>Review each MT5 account separately. Approving an account issues its individual EA upload token.</p></div>
-          <div class="filters">
-            <input id="searchInput" type="search" placeholder="Search client, login, server…">
-            <select id="statusFilter" aria-label="Filter by status">
-              <option value="All">All statuses</option>
-              <option value="Pending">Pending</option>
-              <option value="Approved">Approved</option>
-              <option value="Rejected">Rejected</option>
-              <option value="Revoked">Revoked</option>
-            </select>
-          </div>
-        </div>
-        <div id="clientsList" class="clients-list">
-          <div class="empty-state">Log in to load client registrations.</div>
-        </div>
-      </section>
-      <p id="adminMessage" class="message" role="status"></p>
-    </section>
-
-    <section class="panel token-panel" id="tokenPanel" hidden>
-      <div class="section-heading">
-        <div><h2>New credentials — copy and save now</h2><p>These values are shown only in this response. Store them securely and provide each EA token only to its matching MT5 account.</p></div>
-        <button id="closeTokenBtn" class="secondary">Close</button>
-      </div>
-      <div class="token-content">
-        <label>Client private-link token <div class="copy-row"><textarea id="privateLinkToken" rows="2" readonly></textarea><button data-copy="privateLinkToken" class="secondary copy-btn">Copy</button></div></label>
-        <label>EA upload token for this approved account <div class="copy-row"><textarea id="eaUploadToken" rows="2" readonly></textarea><button data-copy="eaUploadToken" class="secondary copy-btn">Copy</button></div></label>
-        <p class="warning">The private-link token gives access to this client's approved dashboard accounts. The EA upload token is specific to the account just approved. Do not post either token publicly.</p>
+    <section class="panel">
+      <div class="panel-head"><div><h2>Accounts</h2><p>Saved in this browser only</p></div><span id="accountCount" class="count">0 accounts</span></div>
+      <div class="table-scroll">
+        <table><thead><tr><th>Account</th><th>Broker server</th><th>Balance</th><th>Equity</th><th>Floating P/L</th><th>Open positions</th><th>Updated</th><th></th></tr></thead>
+        <tbody id="accountsBody"><tr><td colspan="8" class="empty">No accounts added yet.</td></tr></tbody></table>
       </div>
     </section>
+    <section class="summary-grid lower">
+      <article class="metric"><span>Total Balance</span><strong id="totalBalance">—</strong></article>
+      <article class="metric"><span>Total Equity</span><strong id="totalEquity">—</strong></article>
+      <article class="metric"><span>Margin Used</span><strong id="marginUsed">—</strong></article>
+      <article class="metric"><span>Free Margin</span><strong id="freeMargin">—</strong></article>
+      <article class="metric"><span>Open Positions</span><strong id="openPositions">—</strong></article>
+    </section>
+    <footer>MT5 Client Monitor · Version 1 · Data is supplied by the monitoring EA running in MT5.</footer>
   </main>
 
-  <footer>MT5 Account Monitor • Admin access only • Read-only trading data</footer>
+  <dialog id="addDialog">
+    <form id="addForm" method="dialog">
+      <div class="dialog-head"><div><h2>Add MT5 Account</h2><p>Enter the details shown by the monitoring EA.</p></div><button type="button" class="close" id="closeDialog">×</button></div>
+      <label>MT5 Account Number<input id="loginInput" inputmode="numeric" required placeholder="e.g. 12345678"></label>
+      <label>Broker Server<input id="serverInput" required placeholder="e.g. Exness-MT5Real"></label>
+      <label>12-character Keycode<input id="keyInput" required minlength="12" maxlength="12" autocomplete="off" placeholder="Copy from the EA chart"></label>
+      <div class="dialog-actions"><button type="button" id="cancelBtn" class="button">Cancel</button><button type="submit" class="button primary">Add Account</button></div>
+      <p class="hint">The account is saved only in this browser. If browser storage is cleared, add it again using the same Keycode.</p>
+    </form>
+  </dialog>
   <script src="app.js"></script>
 </body>
 </html>

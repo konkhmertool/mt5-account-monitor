@@ -1,282 +1,88 @@
-const $ = (id) => document.getElementById(id);
-
-let apiUrl = "";
-let adminToken = "";
-let clients = [];
-
-// Keep the admin session across page refreshes in this tab only.
-// The Worker still enforces 30-minute inactivity and 8-hour maximum limits.
-const ADMIN_SESSION_KEY = "mt5MonitorAdminSession";
-function saveAdminSession() {
-  if (adminToken && apiUrl) sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ token: adminToken, apiUrl }));
-}
-function clearAdminSession() {
-  sessionStorage.removeItem(ADMIN_SESSION_KEY);
-}
-let busy = false;
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[c]));
-}
-
-function setStatus(text, state = "") {
-  $("connection").className = `status ${state}`;
-  $("connection").innerHTML = `<i></i>${escapeHtml(text)}`;
-}
-
-function message(text, isError = false) {
-  $("adminMessage").textContent = text;
-  $("adminMessage").className = `message ${isError ? "error-text" : ""}`;
-}
-
-async function api(path, options = {}) {
-  const response = await fetch(`${apiUrl}${path}`, {
-    ...options,
-    headers: {
-      "accept": "application/json",
-      ...(options.body ? { "content-type": "application/json" } : {}),
-      ...(adminToken ? { "authorization": `Bearer ${adminToken}` } : {}),
-      ...(options.headers || {})
-    },
-    cache: "no-store"
-  });
-  let data;
-  try { data = await response.json(); } catch { data = {}; }
-  if (!response.ok) throw new Error(data.error || `Request failed (HTTP ${response.status})`);
-  return data;
-}
-
-async function login(event) {
-  event.preventDefault();
-  apiUrl = $("apiUrl").value.trim().replace(/\/+$/, "");
-  const password = $("adminPassword").value;
-  if (!apiUrl || !password) return;
-  try {
-    const parsed = new URL(apiUrl);
-    if (parsed.protocol !== "https:") throw new Error("Use an HTTPS Worker URL.");
-  } catch (e) {
-    $("loginMessage").textContent = e.message || "Enter a valid Worker URL.";
-    return;
-  }
-
-  $("loginBtn").disabled = true;
-  $("loginMessage").textContent = "Connecting…";
-  try {
-    const response = await fetch(`${apiUrl}/api/admin/login`, {
-      method: "POST",
-      headers: { "content-type": "application/json", "accept": "application/json" },
-      body: JSON.stringify({ password }),
-      cache: "no-store"
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || `Login failed (HTTP ${response.status})`);
-    adminToken = data.token;
-    saveAdminSession();
-    $("adminPassword").value = "";
-    $("loginPanel").hidden = true;
-    $("adminArea").hidden = false;
-    $("refreshBtn").disabled = false;
-    $("logoutBtn").hidden = false;
-    setStatus("Admin connected", "online");
-    await loadClients();
-  } catch (e) {
-    adminToken = "";
-    clearAdminSession();
-    $("loginMessage").textContent = e.message;
-    setStatus("Connection issue", "error");
-  } finally {
-    $("loginBtn").disabled = false;
-  }
-}
-
-function accountCounts(list) {
-  const all = list.flatMap(c => Array.isArray(c.accounts) ? c.accounts : []);
-  return {
-    clients: list.length,
-    accounts: all.length,
-    pending: all.filter(a => a.status === "Pending").length,
-    approved: all.filter(a => a.status === "Approved").length,
-    inactive: all.filter(a => ["Rejected", "Revoked"].includes(a.status)).length
+(() => {
+  "use strict";
+  // Change this to your deployed Cloudflare Worker URL.  
+  const WORKER_URL = "https://monitor.mt5dashboard.workers.dev";
+  const STORAGE_KEY = "mt5_client_monitor_accounts_v1";
+  const $ = (id) => document.getElementById(id);
+  const money = (value, currency) => {
+    const n = Number(value || 0);
+    return `${n < 0 ? "-" : ""}${Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} ${currency || ""}`.trim();
   };
-}
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const loadAccounts = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; } };
+  const saveAccounts = (a) => localStorage.setItem(STORAGE_KEY, JSON.stringify(a));
+  let accounts = loadAccounts();
+  let snapshots = [];
 
-function renderSummary() {
-  const c = accountCounts(clients);
-  $("clientCount").textContent = c.clients;
-  $("accountCount").textContent = c.accounts;
-  $("pendingCount").textContent = c.pending;
-  $("approvedCount").textContent = c.approved;
-  $("inactiveCount").textContent = c.inactive;
-}
-
-function statusClass(status) {
-  return String(status || "Pending").toLowerCase();
-}
-
-function filteredClients() {
-  const q = $("searchInput").value.trim().toLowerCase();
-  const filter = $("statusFilter").value;
-  return clients.map(client => {
-    const accounts = (client.accounts || []).filter(a => {
-      const matchesStatus = filter === "All" || a.status === filter;
-      const haystack = [client.displayName, client.email, a.displayName, a.login, a.server].join(" ").toLowerCase();
-      return matchesStatus && (!q || haystack.includes(q));
-    });
-    return { ...client, visibleAccounts: accounts };
-  }).filter(c => c.visibleAccounts.length || (!q && filter === "All" && !(c.accounts || []).length));
-}
-
-function renderClients() {
-  renderSummary();
-  const list = filteredClients();
-  if (!list.length) {
-    $("clientsList").innerHTML = '<div class="empty-state">No registrations match this filter.</div>';
-    return;
-  }
-
-  $("clientsList").innerHTML = list.map(client => {
-    const accountsHtml = client.visibleAccounts.map(account => {
-      const id = escapeHtml(account.id);
-      const status = escapeHtml(account.status || "Pending");
-      const approved = account.status === "Approved";
-      const pending = account.status === "Pending";
-      const actions = pending
-        ? `<button class="small-btn approve-btn" data-action="approve" data-client="${escapeHtml(client.id)}" data-account="${id}">Approve</button>
-           <button class="small-btn reject-btn" data-action="reject" data-client="${escapeHtml(client.id)}" data-account="${id}">Reject</button>`
-        : approved
-          ? `<button class="small-btn revoke-btn" data-action="revoke" data-client="${escapeHtml(client.id)}" data-account="${id}">Revoke</button>`
-          : `<span class="muted">No action available</span>`;
-
-      return `<article class="account-row">
-        <div class="account-main">
-          <div class="account-title"><strong>${escapeHtml(account.displayName || "MT5 Account")}</strong><span class="status-pill ${statusClass(status)}">${status}</span></div>
-          <div class="account-meta"><span>Login: <b>${escapeHtml(account.login)}</b></span><span>Server: <b>${escapeHtml(account.server)}</b></span></div>
-          ${account.adminNote ? `<div class="admin-note">Admin note: ${escapeHtml(account.adminNote)}</div>` : ""}
-        </div>
-        <div class="account-actions">${actions}</div>
-      </article>`;
+  function notice(message, error=false) { $("notice").textContent = message; $("notice").classList.toggle("error", error); }
+  function render() {
+    const body = $("accountsBody");
+    $("accountCount").textContent = `${accounts.length} account${accounts.length===1?"":"s"}`;
+    if (!accounts.length) {
+      body.innerHTML = '<tr><td colspan="8" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr>';
+      ["todayProfit","weekProfit","monthProfit","allProfit","floating","totalBalance","totalEquity","marginUsed","freeMargin","openPositions"].forEach(id => $(id).textContent="—");
+      return;
+    }
+    const byKey = new Map(snapshots.map(s => [`${s.login}|${s.server}`,s]));
+    let totals = {today:0,week:0,month:0,all:0,float:0,balance:0,equity:0,margin:0,free:0,positions:0};
+    body.innerHTML = accounts.map((a,i) => {
+      const s = byKey.get(`${a.login}|${a.server}`);
+      if (!s) return `<tr><td><span class="account-name">${esc(a.login)}</span><div class="muted">No data received yet</div></td><td>${esc(a.server)}</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Waiting</td><td><button class="remove" data-remove="${i}">Remove</button></td></tr>`;
+      const currency = s.currency || "";
+      ["today","week","month","all","float","balance","equity","margin","free"].forEach(k => totals[k] += Number(s[k==="float"?"floating":k==="all"?"allTime":k==="balance"?"balance":k==="equity"?"equity":k==="margin"?"margin":k==="free"?"freeMargin":k==="today"?"today":k==="week"?"week": "month"] || 0));
+      totals.positions += Number(s.openPositions || 0);
+      const p = Number(s.floating || 0);
+      const updated = s.updatedAt ? new Date(s.updatedAt).toLocaleString() : "—";
+      return `<tr><td><span class="account-name">${esc(s.displayName || a.login)}</span><div class="muted">${esc(a.login)} · ${esc(currency)}</div></td><td>${esc(a.server)}</td><td>${money(s.balance,currency)}</td><td>${money(s.equity,currency)}</td><td class="${p>=0?"positive":"negative"}">${money(p,currency)}</td><td>${Number(s.openPositions||0)}</td><td>${esc(updated)}</td><td><button class="remove" data-remove="${i}">Remove</button></td></tr>`;
     }).join("");
-
-    return `<section class="client-card">
-      <div class="client-heading">
-        <div><h3>${escapeHtml(client.displayName || "Unnamed client")}</h3>
-          <p>${client.email ? escapeHtml(client.email) : "No email supplied"} <span class="dot">•</span> Client ID: <code>${escapeHtml(client.id)}</code></p>
-        </div>
-        <span class="client-total">${client.visibleAccounts.length} account${client.visibleAccounts.length === 1 ? "" : "s"} shown</span>
-      </div>
-      <div class="account-list">${accountsHtml || '<div class="empty-inline">No accounts match this filter.</div>'}</div>
-    </section>`;
-  }).join("");
-}
-
-async function loadClients() {
-  if (!adminToken || busy) return;
-  busy = true;
-  $("refreshBtn").disabled = true;
-  try {
-    const data = await api("/api/admin/clients", { method: "GET" });
-    clients = Array.isArray(data.clients) ? data.clients : [];
-    renderClients();
-    setStatus("Admin connected", "online");
-    message(`Loaded ${clients.length} client registration(s).`);
-  } catch (e) {
-    setStatus("Session expired / error", "error");
-    message(`${e.message} If your admin session expired, log in again.`, true);
-    if (/session expired|invalid/i.test(e.message)) logout(false);
-  } finally {
-    busy = false;
-    $("refreshBtn").disabled = !adminToken;
+    const currency = snapshots[0]?.currency || "";
+    $("todayProfit").textContent=money(totals.today,currency);
+    $("weekProfit").textContent=money(totals.week,currency);
+    $("monthProfit").textContent=money(totals.month,currency);
+    $("allProfit").textContent=money(totals.all,currency);
+    $("floating").textContent=money(totals.float,currency);
+    $("totalBalance").textContent=money(totals.balance,currency);
+    $("totalEquity").textContent=money(totals.equity,currency);
+    $("marginUsed").textContent=money(totals.margin,currency);
+    $("freeMargin").textContent=money(totals.free,currency);
+    $("openPositions").textContent=String(totals.positions);
   }
-}
 
-async function accountAction(button) {
-  if (button.disabled) return;
-  const { action, client, account } = button.dataset;
-  const labels = { approve: "approve this MT5 account", reject: "reject this MT5 account", revoke: "revoke this MT5 account" };
-  if (!window.confirm(`Are you sure you want to ${labels[action]}?`)) return;
-
-  let note = "";
-  if (action === "reject") {
-    note = window.prompt("Optional note for your records (leave blank if none):") || "";
-  }
-  button.disabled = true;
-  message(`${action[0].toUpperCase()}${action.slice(1)} request processing…`);
-  try {
-    const result = await api(`/api/admin/clients/${encodeURIComponent(client)}/accounts/${encodeURIComponent(account)}/${action}`, {
-      method: "POST",
-      body: JSON.stringify({ note })
-    });
-    if (action === "approve" && result.eaUploadToken) {
-      $("privateLinkToken").value = result.privateLinkToken || "A private-link token already exists. Use the client's previously issued private link.";
-      $("eaUploadToken").value = result.eaUploadToken;
-      $("tokenPanel").hidden = false;
-      $("tokenPanel").scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-    message(`Account ${result.accountStatus || action + "d"} successfully.`);
-    await loadClients();
-  } catch (e) {
-    message(e.message, true);
-    button.disabled = false;
-  }
-}
-
-function logout(showMessage = true) {
-  adminToken = "";
-  clearAdminSession();
-  clients = [];
-  $("adminArea").hidden = true;
-  $("loginPanel").hidden = false;
-  $("refreshBtn").disabled = true;
-  $("logoutBtn").hidden = true;
-  $("tokenPanel").hidden = true;
-  setStatus("Not connected");
-  if (showMessage) $("loginMessage").textContent = "You have logged out.";
-}
-
-$("loginForm").addEventListener("submit", login);
-$("refreshBtn").addEventListener("click", loadClients);
-$("logoutBtn").addEventListener("click", () => logout(true));
-$("searchInput").addEventListener("input", renderClients);
-$("statusFilter").addEventListener("change", renderClients);
-$("clientsList").addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action]");
-  if (button) accountAction(button);
-});
-$("closeTokenBtn").addEventListener("click", () => { $("tokenPanel").hidden = true; });
-document.querySelectorAll("[data-copy]").forEach(button => {
-  button.addEventListener("click", async () => {
-    const field = $(button.dataset.copy);
+  async function refresh() {
+    if (!accounts.length) { notice("Add an MT5 account first."); return; }
+    if (WORKER_URL.includes("YOUR-WORKER-NAME")) { notice("Set your Cloudflare Worker URL in app.js before using Refresh.",true); return; }
+    $("refreshBtn").disabled=true; $("refreshBtn").textContent="Refreshing…";
     try {
-      await navigator.clipboard.writeText(field.value);
-      const old = button.textContent;
-      button.textContent = "Copied";
-      setTimeout(() => button.textContent = old, 1200);
-    } catch {
-      field.focus(); field.select();
-      message("Clipboard permission was blocked. Select the token text and copy it manually.", true);
-    }
-  });
-});
-
-
-// Restore a session after refresh in the same browser tab.
-(async function restoreAdminSession() {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || "null");
-    if (!saved || !saved.token || !saved.apiUrl) return;
-    apiUrl = String(saved.apiUrl).replace(/\/+$/, "");
-    adminToken = saved.token;
-    $("apiUrl").value = apiUrl;
-    $("loginPanel").hidden = true;
-    $("adminArea").hidden = false;
-    $("refreshBtn").disabled = false;
-    $("logoutBtn").hidden = false;
-    setStatus("Checking admin session…");
-    await loadClients();
-  } catch (e) {
-    logout(false);
-    $("loginMessage").textContent = "Your admin session expired. Please log in again.";
+      const response = await fetch(`${WORKER_URL.replace(/\/$/,"")}/api/snapshots`, {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({accounts})
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+      snapshots = result.snapshots || [];
+      render();
+      const missing = result.invalidCount || 0;
+      notice(`Updated ${snapshots.length} of ${accounts.length} account(s). ${missing ? `${missing} account(s) could not be verified. `:""}Snapshot times are shown in the table.`);
+    } catch (e) { notice(`Refresh failed: ${e.message}`,true); }
+    finally { $("refreshBtn").disabled=false; $("refreshBtn").textContent="↻ Refresh"; }
   }
+
+  $("addBtn").addEventListener("click",()=>$("addDialog").showModal());
+  $("closeDialog").addEventListener("click",()=>$("addDialog").close());
+  $("cancelBtn").addEventListener("click",()=>$("addDialog").close());
+  $("addForm").addEventListener("submit",(event)=>{
+    event.preventDefault();
+    const login=$("loginInput").value.trim(), server=$("serverInput").value.trim(), keycode=$("keyInput").value.trim().toUpperCase();
+    if(!/^[A-Z0-9]{12}$/.test(keycode)){notice("Keycode must be exactly 12 letters/numbers.",true);return;}
+    if(accounts.some(a=>a.login===login&&a.server===server)){notice("This account is already in your list.",true);return;}
+    accounts.push({login,server,keycode}); saveAccounts(accounts);
+    $("addForm").reset(); $("addDialog").close(); snapshots=[]; render();
+    notice("Account added. Make sure its MT5 monitoring EA is running, then press Refresh.");
+  });
+  $("accountsBody").addEventListener("click",(event)=>{
+    const button=event.target.closest("[data-remove]"); if(!button)return;
+    accounts.splice(Number(button.dataset.remove),1); saveAccounts(accounts); snapshots=[]; render(); notice("Account removed from this browser.");
+  });
+  $("refreshBtn").addEventListener("click",refresh);
+  render();
 })();
