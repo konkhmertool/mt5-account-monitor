@@ -34,7 +34,22 @@ table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:1080px}\n
 thead{background:#121e31}
 tfoot{background:#121e31;border-top:2px solid #3b506d}
 tfoot th{background:#121e31;color:#f3f6fc;font-size:12px;font-weight:800;border-top:2px solid #3b506d;border-bottom:0;padding:15px 14px;white-space:nowrap}
-thead th{background:#121e31}\nth{padding:13px 14px;text-align:left;color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--border)}
+thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  user-select: none;
+  position: sticky;
+  top: 0;
+  padding: 9px 14px;
+}\nth{white-space:nowrap}
+thead th:first-child, tfoot th:first-child{text-align:left}
+thead th:not(:first-child), tbody td:not(:first-child), tfoot th:not(:first-child){text-align:right}
 td{padding:14px;background:#091322;border-bottom:1px solid #23334a;white-space:nowrap;font-size:14px}
 tbody tr:last-child td{border-bottom:0}
 .account-name{font-size:14px;font-weight:750;color:var(--text);display:flex;align-items:center;gap:7px;min-width:0}.account-queue{flex:0 0 14px;width:14px;text-align:right;color:var(--muted);font-size:12px;font-weight:700}.account-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.status-dot{display:inline-block;flex:0 0 9px;width:9px;height:9px;border-radius:50%;vertical-align:middle}.status-dot.online{background:var(--green);box-shadow:0 0 7px #35d39a88}.status-dot.offline{background:var(--red);box-shadow:0 0 7px #ff647888}
@@ -77,3 +92,5 @@ dialog input{display:block;width:100%;margin-top:7px;padding:12px;border:1px sol
  .open-position-value{gap:8px}.open-position-value>span{font-size:11px;padding-left:8px}
  
 }
+
+.account-name{gap:6px}.account-queue{flex:0 0 12px;width:12px;text-align:right;color:var(--muted);font-size:12px;font-weight:600}.account-bullet{color:var(--muted);flex:0 0 auto}.account-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
