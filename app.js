@@ -1,185 +1,55 @@
 (() => {
   "use strict";
-  const WORKER_URL = "https://monitor.mt5dashboard.workers.dev";
-  const STORAGE_KEY = "mt5_client_monitor_accounts_v1";
-  const $ = (id) => document.getElementById(id);
-  const number = (value) => Number(value || 0);
-  const money = (value, currency) => {
-    const n = number(value);
-    const sign = n > 0 ? "+" : n < 0 ? "−" : "";
-    return `${sign}${Math.abs(n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} ${currency || ""}`.trim();
-  };
-  const profitClass = (value) => number(value) > 0 ? "positive" : number(value) < 0 ? "negative" : "neutral";
-  const toUSC = (value, currency) => {
-    const amount = number(value), code = String(currency || "").trim().toUpperCase();
-    return code === "USD" ? amount * 100 : amount;
-  };
-  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const loadAccounts = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); } catch { return []; } };
-  const saveAccounts = (a) => localStorage.setItem(STORAGE_KEY, JSON.stringify(a));
-  let accounts = loadAccounts(), snapshots = [], selectedRange = "today";
-  let heartbeatTimer = null, refreshTimer = null, viewerStarted = false;
-  let requestInProgress = false;
-
-  function setConnection(connected, message) {
-    const el = $("connectionStatus");
-    if (!el) return;
-    el.classList.toggle("connected", !!connected);
-    el.classList.toggle("connecting", !connected);
-    el.querySelector(".connection-dot").textContent = "•";
-    el.querySelector(".connection-text").textContent = message || (connected ? "Connected" : "Connecting...");
-  }
-
-  // Use Cambodia's calendar date (UTC+7), independent of the device timezone.
-  function cambodiaToday() {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone:"Asia/Phnom_Penh", year:"numeric", month:"2-digit", day:"2-digit"
-    }).formatToParts(new Date());
-    const p = Object.fromEntries(parts.map(x => [x.type,x.value]));
-    return new Date(Number(p.year), Number(p.month)-1, Number(p.day));
-  }
-  const pad2 = n => String(n).padStart(2,"0");
-  const toDateInput = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-  function setDateRange(from,to,name) {
-    $("dateFrom").value = toDateInput(from);
-    $("dateTo").value = toDateInput(to);
-    selectedRange = name || "custom";
-    document.querySelectorAll(".range-btn").forEach(b => b.classList.toggle("active",b.dataset.range===selectedRange));
-  }
-  function applyPreset(name) {
-    const today = cambodiaToday(), from = new Date(today), to = new Date(today), day = today.getDay();
-    if(name==="yesterday"){from.setDate(from.getDate()-1);to.setTime(from.getTime());}
-    else if(name==="thisWeek") from.setDate(from.getDate()-((day+6)%7));
-    else if(name==="lastWeek"){from.setDate(from.getDate()-((day+6)%7)-7);to.setTime(from.getTime());to.setDate(to.getDate()+6);}
-    else if(name==="thisMonth") from.setDate(1);
-    else if(name==="lastMonth"){from.setDate(1);from.setMonth(from.getMonth()-1);to.setTime(today.getTime());to.setDate(0);}
-    setDateRange(from,to,name);
-  }
-  function notice(message,error=false) {
-    const el=$("notice"); if(!el)return;
-    el.textContent=message; el.classList.toggle("error",error);
-  }
-  function setMoney(id,value,currency,colored=false) {
-    const el=$(id); if(!el)return;
-    el.textContent=money(value,currency);
-    el.classList.toggle("positive",colored&&number(value)>0);
-    el.classList.toggle("negative",colored&&number(value)<0);
-    el.classList.toggle("neutral",colored&&number(value)===0);
-  }
-  function isSnapshotLive(s) {
-    const stamp=Date.parse(s?.updatedAt||"");
-    return Number.isFinite(stamp) && Date.now()-stamp<=15000 && Date.now()>=stamp-5000;
-  }
-
-  function render() {
-    const body=$("accountsBody");
-    if(!accounts.length) {
-      body.innerHTML='<tr><td colspan="7" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr>';
-      ["todayProfit","weekProfit","monthProfit","allProfit","floating","totalBalance","totalEquity","marginUsed","freeMargin","openPositions"].forEach(id=>{if($(id)){$(id).textContent="—";$(id).classList.remove("positive","negative","neutral");}});
-      $("accountsOpen").textContent="0/0 accounts open"; return;
-    }
-    const byKey=new Map(snapshots.map(s=>[`${s.login}|${s.server}`,s]));
-    const totals={today:0,week:0,month:0,all:0,float:0,balance:0,equity:0,margin:0,free:0,positions:0,accountsOpen:0};
+  const WORKER_URL="https://monitor.mt5dashboard.workers.dev", STORAGE_KEY="mt5_client_monitor_accounts_v1";
+  const $=id=>document.getElementById(id), n=v=>Number(v||0), pad=v=>String(v).padStart(2,"0");
+  const money=(v,c)=>{v=n(v);return `${v>0?"+":v<0?"−":""}${Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} ${c||""}`.trim()};
+  const cls=v=>n(v)>0?"positive":n(v)<0?"negative":"neutral";
+  const toUSC=(v,c)=>String(c||"").toUpperCase()==="USD"?n(v)*100:n(v);
+  const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const load=()=>{try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch{return []}};
+  let accounts=load(),snapshots=[],profitRows=[],selectedRange="today",busy=false,heartbeat=null,poll=null;
+  function setConnection(ok){const e=$("connectionStatus");if(!e)return;e.classList.toggle("connected",ok);e.classList.toggle("connecting",!ok);e.querySelector(".connection-text").textContent=ok?"Connected":"Connecting...";}
+  function serverDate(){const s=snapshots.find(x=>x.serverTime)?.serverTime;if(s){const m=String(s).match(/(\d{4})[.\/-](\d{2})[.\/-](\d{2})/);if(m)return {y:+m[1],m:+m[2],d:+m[3]};}const d=new Date();return {y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()};}
+  const dateString=o=>`${o.y}-${pad(o.m)}-${pad(o.d)}`;
+  const shift=(o,days)=>{const d=new Date(Date.UTC(o.y,o.m-1,o.d+days));return {y:d.getUTCFullYear(),m:d.getUTCMonth()+1,d:d.getUTCDate()}};
+  const firstMonth=o=>({y:o.y,m:o.m,d:1});
+  const monday=o=>{const day=new Date(Date.UTC(o.y,o.m-1,o.d)).getUTCDay();return shift(o,-((day+6)%7))};
+  const toStamp=s=>{const [y,m,d]=s.split("-").map(Number);return Math.floor(Date.UTC(y,m-1,d)/1000)};
+  function rangeDates(name){const today=serverDate();let from=today,to=today;if(name==="yesterday")from=to=shift(today,-1);else if(name==="thisWeek")from=monday(today);else if(name==="lastWeek"){from=shift(monday(today),-7);to=shift(from,6)}else if(name==="thisMonth")from=firstMonth(today);else if(name==="lastMonth"){const first=firstMonth(today);to=shift(first,-1);from=firstMonth(to)}return {from,to};}
+  function labelForRange(){const map={today:"Today's Profit",yesterday:"Yesterday's Profit",thisWeek:"This Week's Profit",lastWeek:"Last Week's Profit",thisMonth:"This Month's Profit",lastMonth:"Last Month's Profit"};return map[selectedRange]||"Selected Period Profit";}
+  function updateDateInputs(from,to){$("dateFrom").value=dateString(from);$("dateTo").value=dateString(to);}
+  function applyPreset(name){selectedRange=name;const r=rangeDates(name);updateDateInputs(r.from,r.to);document.querySelectorAll(".range-btn").forEach(b=>b.classList.toggle("active",b.dataset.range===name));$("selectedProfitLabel").textContent=labelForRange();$("selectedRangeHeading").textContent=({today:"TODAY",yesterday:"YESTERDAY",thisWeek:"THIS WEEK",lastWeek:"LAST WEEK",thisMonth:"THIS MONTH",lastMonth:"LAST MONTH"})[name]||"SELECTED PERIOD";refresh(true);}
+  function chosenRange(){return {from:$ ("dateFrom").value,to:$ ("dateTo").value};}
+  function selectedPeriodLabel(){return selectedRange==="custom"?"Selected Period":selectedRange==="today"?"Today":selectedRange==="yesterday"?"Yesterday":selectedRange==="thisWeek"?"This Week":selectedRange==="lastWeek"?"Last Week":selectedRange==="thisMonth"?"This Month":"Last Month";}
+  function render(){
+    const body=$("accountsBody"),foot=$("accountsFoot");if(!accounts.length){body.innerHTML='<tr><td colspan="7" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr>';foot.innerHTML="";return;}
+    const snapMap=new Map(snapshots.map(s=>[`${s.login}|${s.server}`,s])),profitMap=new Map(profitRows.map(p=>[`${p.login}|${p.server}`,p]));
+    const totals={balance:0,range:0,week:0,month:0,all:0,float:0,equity:0,margin:0,free:0,positions:0,live:0};
     body.innerHTML=accounts.map((a,i)=>{
-      const s=byKey.get(`${a.login}|${a.server}`), live=!!s&&isSnapshotLive(s);
-      if(!s) return `<tr><td><div class="account-name"><span class="status-dot offline"></span>${esc(a.displayName||a.login)}</div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="neutral">0.00</td></tr>`;
-      const c=s.currency||"", floating=live?number(s.floating):0;
-      totals.today+=toUSC(s.today,c); totals.week+=toUSC(s.week,c); totals.month+=toUSC(s.month,c);
-      totals.all+=toUSC(s.allTime,c); totals.float+=live?toUSC(floating,c):0;
-      totals.balance+=toUSC(s.balance,c); totals.equity+=toUSC(s.equity,c);
-      totals.margin+=toUSC(s.margin,c); totals.free+=toUSC(s.freeMargin,c);
-      if(live){totals.positions+=number(s.openPositions);if(number(s.openPositions)>0)totals.accountsOpen++;}
-      return `<tr><td><div class="account-name"><span class="status-dot ${live?"online":"offline"}" title="${live?"Connected":"Offline"}"></span>${esc(s.displayName||a.displayName||a.login)}</div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>${money(s.balance,c)}</td><td class="${profitClass(s.today)}">${money(s.today,c)}</td><td class="${profitClass(s.week)}">${money(s.week,c)}</td><td class="${profitClass(s.month)}">${money(s.month,c)}</td><td class="${profitClass(s.allTime)}">${money(s.allTime,c)}</td><td class="${profitClass(floating)}">${money(floating,c)}</td></tr>`;
+      const s=snapMap.get(`${a.login}|${a.server}`),p=profitMap.get(`${a.login}|${a.server}`),live=s&&Date.now()-Date.parse(s.updatedAt)<=15000;
+      if(!s)return `<tr><td><div class="account-name"><span class="status-dot offline"></span>${esc(a.displayName||a.login)}</div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>0.00</td></tr>`;
+      const c=s.currency||"",range=n(p?.rangeProfit),week=n(p?.weekProfit),month=n(p?.monthProfit),all=n(p?.allTimeProfit),floating=live?n(s.floating):0;
+      totals.balance+=toUSC(s.balance,c);totals.range+=toUSC(range,c);totals.week+=toUSC(week,c);totals.month+=toUSC(month,c);totals.all+=toUSC(all,c);totals.float+=toUSC(floating,c);totals.equity+=toUSC(s.equity,c);totals.margin+=toUSC(s.margin,c);totals.free+=toUSC(s.freeMargin,c);if(live){totals.live++;totals.positions+=n(s.openPositions)}
+      return `<tr><td><div class="account-name"><span class="status-dot ${live?"online":"offline"}" title="${live?"Live":"Offline"}"></span>${esc(s.displayName||a.displayName||a.login)}</div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>${money(s.balance,c)}</td><td class="${cls(range)}">${money(range,c)}</td><td class="${cls(week)}">${money(week,c)}</td><td class="${cls(month)}">${money(month,c)}</td><td class="${cls(all)}">${money(all,c)}</td><td class="${cls(floating)}">${money(floating,c)}</td></tr>`;
     }).join("");
-    setMoney("todayProfit",totals.today,"USC",true); setMoney("weekProfit",totals.week,"USC",true);
-    setMoney("monthProfit",totals.month,"USC",true); setMoney("allProfit",totals.all,"USC",true);
-    setMoney("floating",totals.float,"USC",true); setMoney("totalBalance",totals.balance,"USC");
-    setMoney("totalEquity",totals.equity,"USC"); setMoney("marginUsed",totals.margin,"USC");
-    setMoney("freeMargin",totals.free,"USC"); $("openPositions").textContent=String(totals.positions);
-    const liveCount=accounts.filter(a=>isSnapshotLive(byKey.get(`${a.login}|${a.server}`))).length;
-    $("accountsOpen").textContent=`${totals.accountsOpen}/${liveCount} live accounts open`;
+    const sums=[totals.balance,totals.range,totals.week,totals.month,totals.all,totals.float];
+    foot.innerHTML=`<tr><th>TOTAL (${accounts.length} accounts)</th>${sums.map((v,i)=>`<th class="${i===0?"":cls(v)}">${money(v,"USC")}</th>`).join("")}</tr>`;
+    $("selectedProfitLabel").textContent=labelForRange();setMoney("selectedProfit",totals.range);setMoney("weekProfit",totals.week);setMoney("monthProfit",totals.month);setMoney("allProfit",totals.all);setMoney("floating",totals.float);
+    setMoney("totalBalance",totals.balance);setMoney("totalEquity",totals.equity);setMoney("marginUsed",totals.margin);setMoney("freeMargin",totals.free);$("openPositions").textContent=totals.positions;$("accountsOpen").textContent=`${accounts.filter(a=>{const s=snapMap.get(`${a.login}|${a.server}`);return s&&Date.now()-Date.parse(s.updatedAt)<=15000&&n(s.openPositions)>0}).length}/${totals.live} live accounts open`;
   }
-
-  async function refresh() {
-    if(!accounts.length){setConnection(false,"Connecting...");return;}
-    if(requestInProgress)return;
-    requestInProgress=true;
-    try {
-      const response=await fetch(`${WORKER_URL}/api/snapshots`,{
-        method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accounts})
-      });
-      const result=await response.json();
-      if(!response.ok)throw new Error(result.error||`HTTP ${response.status}`);
-      snapshots=result.snapshots||[];
-      setConnection(true,"Connected");
-      render();
-    } catch(e) {
-      setConnection(false,"Connecting...");
-    } finally {requestInProgress=false;}
-  }
-
-  async function sessionRequest(path,keepalive=false) {
-    if(!accounts.length)return false;
-    try {
-      const r=await fetch(`${WORKER_URL}${path}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({accounts}),keepalive});
-      return r.ok;
-    } catch {return false;}
-  }
-  async function startViewer() {
-    if(!accounts.length){setConnection(false,"Connecting...");return;}
-    const ok=await sessionRequest("/api/session/start");
-    viewerStarted=ok;
-    await refresh();
-  }
-  function enableViewer() {
-    if(!accounts.length){setConnection(false,"Connecting...");return;}
-    setConnection(false,"Connecting...");
-    startViewer();
-    if(!heartbeatTimer)heartbeatTimer=setInterval(()=>sessionRequest("/api/session/heartbeat"),15000);
-    if(!refreshTimer)refreshTimer=setInterval(refresh,2000);
-  }
-  function disableViewer() {
-    viewerStarted=false;
-    if(heartbeatTimer){clearInterval(heartbeatTimer);heartbeatTimer=null;}
-    if(refreshTimer){clearInterval(refreshTimer);refreshTimer=null;}
-    setConnection(false,"Connecting...");
-  }
-
-  $("addBtn").addEventListener("click",()=>$("addDialog").showModal());
-  $("closeDialog").addEventListener("click",()=>$("addDialog").close());
-  $("cancelBtn").addEventListener("click",()=>$("addDialog").close());
-  $("addForm").addEventListener("submit",event=>{
-    event.preventDefault();
-    const login=$("loginInput").value.trim(),server=$("serverInput").value.trim(),keycode=$("keyInput").value.trim();
-    if(!/^\d{6}$/.test(keycode)){notice("Keycode must be exactly 6 digits.",true);return;}
-    if(accounts.some(a=>a.login===login&&a.server===server)){notice("This account is already in your list.",true);return;}
-    accounts.push({login,server,keycode});saveAccounts(accounts);
-    $("addForm").reset();$("addDialog").close();snapshots=[];render();enableViewer();
-  });
-  $("accountsBody").addEventListener("click",event=>{
-    const b=event.target.closest("[data-remove]");if(!b)return;
-    accounts.splice(Number(b.dataset.remove),1);saveAccounts(accounts);snapshots=[];render();
-    disableViewer();if(accounts.length&&document.visibilityState==="visible")enableViewer();
-  });
-
-  // Date selector interaction: presets set Cambodia-local calendar dates.
-  document.querySelectorAll(".range-btn").forEach(btn=>btn.addEventListener("click",()=>applyPreset(btn.dataset.range)));
-  function customDateChanged(){
-    selectedRange="custom";
-    document.querySelectorAll(".range-btn").forEach(b=>b.classList.remove("active"));
-    const f=$("dateFrom").value,t=$("dateTo").value;
-    if(f&&t&&f>t){notice("The From date must be before or equal to the To date.",true);return;}
-    // Historical profit filtering needs closed-deal history from the EA; this selector
-    // stores the chosen interval but does not fabricate historical totals from summaries.
-  }
-  $("dateFrom").addEventListener("change",customDateChanged);
-  $("dateTo").addEventListener("change",customDateChanged);
-  $("accountsBody").addEventListener("click",()=>{});
-  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")enableViewer();else disableViewer();});
-  window.addEventListener("pagehide",disableViewer);
-
-  // Default selected period: Today in Cambodia.
-  applyPreset("today");
-  render();
-  if(document.visibilityState==="visible")enableViewer();
+  function setMoney(id,v){const e=$(id);e.textContent=money(v,"USC");e.classList.remove("positive","negative","neutral");e.classList.add(cls(v));}
+  async function post(path,data){const r=await fetch(WORKER_URL+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);return j;}
+  async function loadProfit(){if(!accounts.length)return;const r=chosenRange();if(!r.from||!r.to||r.from>r.to)return;const start=toStamp(r.from),end=toStamp(r.to)+86400,today=serverDate(),week=monday(today),month=firstMonth(today);const q=await post("/api/deals/query",{accounts,fromTime:start,toExclusive:end,throughExclusive:toStamp(dateString(shift(today,1))),weekStart:toStamp(dateString(week)),monthStart:toStamp(dateString(month))});profitRows=q.profits||[];}
+  async function refresh(silent=false){if(busy||!accounts.length)return;busy=true;try{const r=await post("/api/snapshots",{accounts});snapshots=r.snapshots||[];setConnection(true);if(selectedRange!=="custom"){const d=rangeDates(selectedRange);updateDateInputs(d.from,d.to);}await loadProfit();render();const count=profitRows.reduce((a,p)=>a+n(p.dealCount),0);if(count===0&& !silent)$("notice").textContent="Waiting for MT5 closed-deal history to sync. Keep the dashboard open while the EA is active.";}catch(e){setConnection(false);if(!silent)$("notice").textContent=e.message;}finally{busy=false;}}
+  async function session(path){if(!accounts.length)return;try{await post(path,{accounts})}catch{setConnection(false)}}
+  function startViewer(){if(!accounts.length)return;session("/api/session/start");if(!heartbeat)heartbeat=setInterval(()=>session("/api/session/heartbeat"),15000);if(!poll)poll=setInterval(()=>refresh(true),2000);refresh(true);}
+  function stopViewer(){if(heartbeat){clearInterval(heartbeat);heartbeat=null}if(poll){clearInterval(poll);poll=null}}
+  document.querySelectorAll(".range-btn").forEach(b=>b.addEventListener("click",()=>applyPreset(b.dataset.range)));
+  function customChanged(){const f=$("dateFrom").value,t=$("dateTo").value;if(!f||!t)return;if(f>t){$("notice").textContent="From date must be on or before To date.";return}selectedRange="custom";document.querySelectorAll(".range-btn").forEach(b=>b.classList.remove("active"));$("selectedProfitLabel").textContent="Selected Period Profit";$("selectedRangeHeading").textContent="SELECTED PERIOD";refresh(true);}
+  $("dateFrom").addEventListener("change",customChanged);$("dateTo").addEventListener("change",customChanged);
+  $("addBtn").addEventListener("click",()=>$ ("addDialog").showModal());$("closeDialog").addEventListener("click",()=>$ ("addDialog").close());$("cancelBtn").addEventListener("click",()=>$ ("addDialog").close());
+  $("addForm").addEventListener("submit",e=>{e.preventDefault();const login=$("loginInput").value.trim(),server=$("serverInput").value.trim(),keycode=$("keyInput").value.trim();if(!/^\d{6}$/.test(keycode))return;if(accounts.some(a=>a.login===login&&a.server===server))return;accounts.push({login,server,keycode});localStorage.setItem(STORAGE_KEY,JSON.stringify(accounts));$("addForm").reset();$("addDialog").close();startViewer();});
+  $("accountsBody").addEventListener("click",e=>{const b=e.target.closest("[data-remove]");if(!b)return;accounts.splice(+b.dataset.remove,1);localStorage.setItem(STORAGE_KEY,JSON.stringify(accounts));profitRows=[];snapshots=[];render();});
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")startViewer();else stopViewer()});window.addEventListener("pagehide",stopViewer);
+  if(accounts.length){const today=serverDate();updateDateInputs(today,today);startViewer()}else{const d=new Date();updateDateInputs({y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()},{y:d.getFullYear(),m:d.getMonth()+1,d:d.getDate()});}
 })();

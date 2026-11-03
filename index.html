@@ -11,9 +11,7 @@
   <header class="topbar">
     <div class="brand"><div class="brand-mark">M</div><div><strong>MT5 Client Monitor</strong><small>Account overview</small></div></div>
     <div class="top-actions">
-      <div id="connectionStatus" class="connection-status connecting" role="status" aria-live="polite">
-        <span class="connection-dot">•</span><span class="connection-text">Connecting...</span>
-      </div>
+      <div id="connectionStatus" class="connection-status connecting" role="status" aria-live="polite"><span class="connection-dot">•</span><span class="connection-text">Connecting...</span></div>
       <button id="addBtn" class="button">＋ Add Account</button>
     </div>
   </header>
@@ -36,7 +34,7 @@
     </div>
     <div id="notice" class="sr-only" role="status" aria-live="polite"></div>
     <section class="summary-grid">
-      <article class="metric"><span>Today's Profit</span><strong id="todayProfit">—</strong></article>
+      <article class="metric"><span id="selectedProfitLabel">Today's Profit</span><strong id="selectedProfit">—</strong></article>
       <article class="metric"><span>This Week</span><strong id="weekProfit">—</strong></article>
       <article class="metric"><span>This Month</span><strong id="monthProfit">—</strong></article>
       <article class="metric"><span>All-Time Closed Profit</span><strong id="allProfit">—</strong></article>
@@ -46,9 +44,9 @@
       <div class="table-scroll">
         <table>
           <thead><tr>
-            <th>Account</th><th>Balance</th><th>Today</th><th>This Week</th><th>This Month</th><th>All Time</th><th>Floating</th>
+            <th>Account</th><th>Balance</th><th id="selectedRangeHeading">TODAY</th><th>This Week</th><th>This Month</th><th>All Time</th><th>Floating</th>
           </tr></thead>
-          <tbody id="accountsBody"><tr><td colspan="7" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr></tbody>
+          <tbody id="accountsBody"><tr><td colspan="7" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr></tbody><tfoot id="accountsFoot"></tfoot>
         </table>
       </div>
     </section>
