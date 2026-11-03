@@ -3,7 +3,7 @@
   --border:#263750;--text:#f3f6fc;--muted:#8eafd7;--green:#35d39a;--red:#ff6478;--gold:#f5b83d
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 .topbar{height:76px;padding:0 clamp(20px,4vw,64px);display:flex;align-items:center;justify-content:space-between;background:#101b2d;border-bottom:1px solid var(--border)}
 .brand{display:flex;align-items:center;gap:12px}
 .brand-mark{width:44px;height:44px;border-radius:13px;background:var(--gold);color:#142033;display:grid;place-items:center;font-size:25px;font-weight:900}

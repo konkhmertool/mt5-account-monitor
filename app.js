@@ -4,7 +4,6 @@
   const $=id=>document.getElementById(id), n=v=>Number(v||0), pad=v=>String(v).padStart(2,"0");
   const money=(v,c)=>{v=n(v);return `${v>0?"+":v<0?"−":""}${Math.abs(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})} ${c||""}`.trim()};
   const cls=v=>n(v)>0?"positive":n(v)<0?"negative":"neutral";
-  const toUSC=(v,c)=>String(c||"").toUpperCase()==="USD"?n(v)*100:n(v);
   const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const load=()=>{try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch{return []}};
   let accounts=load(),snapshots=[],profitRows=[],selectedRange="today",busy=false,heartbeat=null,poll=null;
@@ -14,30 +13,37 @@
   const shift=(o,days)=>{const d=new Date(Date.UTC(o.y,o.m-1,o.d+days));return {y:d.getUTCFullYear(),m:d.getUTCMonth()+1,d:d.getUTCDate()}};
   const firstMonth=o=>({y:o.y,m:o.m,d:1});
   const monday=o=>{const day=new Date(Date.UTC(o.y,o.m-1,o.d)).getUTCDay();return shift(o,-((day+6)%7))};
-  const toStamp=s=>{const [y,m,d]=s.split("-").map(Number);return Math.floor(Date.UTC(y,m-1,d)/1000)};
+  // The EA timestamps are based on the VPS local clock (Cambodia UTC+7).
+  const toStamp=s=>{const [y,m,d]=s.split("-").map(Number);return Math.floor(Date.UTC(y,m-1,d,-7)/1000)};
   function rangeDates(name){const today=serverDate();let from=today,to=today;if(name==="yesterday")from=to=shift(today,-1);else if(name==="thisWeek")from=monday(today);else if(name==="lastWeek"){from=shift(monday(today),-7);to=shift(from,6)}else if(name==="thisMonth")from=firstMonth(today);else if(name==="lastMonth"){const first=firstMonth(today);to=shift(first,-1);from=firstMonth(to)}return {from,to};}
   function labelForRange(){const map={today:"Today's Profit",yesterday:"Yesterday's Profit",thisWeek:"This Week's Profit",lastWeek:"Last Week's Profit",thisMonth:"This Month's Profit",lastMonth:"Last Month's Profit"};return map[selectedRange]||"Selected Period Profit";}
   function updateDateInputs(from,to){$("dateFrom").value=dateString(from);$("dateTo").value=dateString(to);}
   function applyPreset(name){selectedRange=name;const r=rangeDates(name);updateDateInputs(r.from,r.to);document.querySelectorAll(".range-btn").forEach(b=>b.classList.toggle("active",b.dataset.range===name));$("selectedProfitLabel").textContent=labelForRange();$("selectedRangeHeading").textContent=({today:"TODAY",yesterday:"YESTERDAY",thisWeek:"THIS WEEK",lastWeek:"LAST WEEK",thisMonth:"THIS MONTH",lastMonth:"LAST MONTH"})[name]||"SELECTED PERIOD";refresh(true);}
   function chosenRange(){return {from:$ ("dateFrom").value,to:$ ("dateTo").value};}
   function selectedPeriodLabel(){return selectedRange==="custom"?"Selected Period":selectedRange==="today"?"Today":selectedRange==="yesterday"?"Yesterday":selectedRange==="thisWeek"?"This Week":selectedRange==="lastWeek"?"Last Week":selectedRange==="thisMonth"?"This Month":"Last Month";}
+  const addCurrency=(map,c,v)=>{const code=String(c||"").trim().toUpperCase()||"N/A";map[code]=(map[code]||0)+n(v)};
+  const currencyText=map=>Object.keys(map).sort().map(c=>money(map[c],c)).join("  ·  ")||"—";
   function render(){
-    const body=$("accountsBody"),foot=$("accountsFoot");if(!accounts.length){body.innerHTML='<tr><td colspan="7" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr>';foot.innerHTML="";return;}
+    const body=$("accountsBody"),foot=$("accountsFoot");
+    if(!accounts.length){body.innerHTML='<tr><td colspan="7" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr>';foot.innerHTML="";return;}
     const snapMap=new Map(snapshots.map(s=>[`${s.login}|${s.server}`,s])),profitMap=new Map(profitRows.map(p=>[`${p.login}|${p.server}`,p]));
-    const totals={balance:0,range:0,week:0,month:0,all:0,float:0,equity:0,margin:0,free:0,positions:0,live:0};
+    const totals={balance:{},range:{},week:{},month:{},all:{},float:{},equity:{},margin:{},free:{},positions:0,live:0};
     body.innerHTML=accounts.map((a,i)=>{
       const s=snapMap.get(`${a.login}|${a.server}`),p=profitMap.get(`${a.login}|${a.server}`),live=s&&Date.now()-Date.parse(s.updatedAt)<=15000;
-      if(!s)return `<tr><td><div class="account-name"><span class="account-queue">${i+1}</span><span class="status-dot offline"></span><span class="account-title">${esc(a.displayName||a.login)}</span></div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>0.00</td></tr>`;
+      if(!s)return `<tr><td><div class="account-name"><span class="status-dot offline"></span>${esc(a.displayName||a.login)}</div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>0.00</td></tr>`;
       const c=s.currency||"",range=n(p?.rangeProfit),week=n(p?.weekProfit),month=n(p?.monthProfit),all=n(p?.allTimeProfit),floating=live?n(s.floating):0;
-      totals.balance+=toUSC(s.balance,c);totals.range+=toUSC(range,c);totals.week+=toUSC(week,c);totals.month+=toUSC(month,c);totals.all+=toUSC(all,c);totals.float+=toUSC(floating,c);totals.equity+=toUSC(s.equity,c);totals.margin+=toUSC(s.margin,c);totals.free+=toUSC(s.freeMargin,c);if(live){totals.live++;totals.positions+=n(s.openPositions)}
-      return `<tr><td><div class="account-name"><span class="account-queue">${i+1}</span><span class="status-dot ${live?"online":"offline"}" title="${live?"Live":"Offline"}"></span><span class="account-title">${esc(s.displayName||a.displayName||a.login)}</span></div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>${money(s.balance,c)}</td><td class="${cls(range)}">${money(range,c)}</td><td class="${cls(week)}">${money(week,c)}</td><td class="${cls(month)}">${money(month,c)}</td><td class="${cls(all)}">${money(all,c)}</td><td class="${cls(floating)}">${money(floating,c)}</td></tr>`;
+      addCurrency(totals.balance,c,s.balance);addCurrency(totals.range,c,range);addCurrency(totals.week,c,week);addCurrency(totals.month,c,month);addCurrency(totals.all,c,all);addCurrency(totals.float,c,floating);addCurrency(totals.equity,c,s.equity);addCurrency(totals.margin,c,s.margin);addCurrency(totals.free,c,s.freeMargin);
+      if(live){totals.live++;totals.positions+=n(s.openPositions)}
+      return `<tr><td><div class="account-name"><span class="status-dot ${live?"online":"offline"}" title="${live?"Live":"Offline"}"></span>${esc(s.displayName||a.displayName||a.login)}</div><div class="muted">ID: #${esc(a.login)} · ${esc(a.server)}</div><button class="remove" data-remove="${i}">Remove account</button></td><td>${money(s.balance,c)}</td><td class="${cls(range)}">${money(range,c)}</td><td class="${cls(week)}">${money(week,c)}</td><td class="${cls(month)}">${money(month,c)}</td><td class="${cls(all)}">${money(all,c)}</td><td class="${cls(floating)}">${money(floating,c)}</td></tr>`;
     }).join("");
-    const sums=[totals.balance,totals.range,totals.week,totals.month,totals.all,totals.float];
-    foot.innerHTML=`<tr><th>TOTAL (${accounts.length} accounts)</th>${sums.map((v,i)=>`<th class="${i===0?"":cls(v)}">${money(v,"USC")}</th>`).join("")}</tr>`;
+    const cols=["balance","range","week","month","all","float"], currencies=[...new Set(cols.flatMap(k=>Object.keys(totals[k])))].sort();
+    foot.innerHTML=currencies.map((c,idx)=>`<tr><th>${idx===0?"SUBTOTAL ("+accounts.length+" accounts)":""} ${esc(c)}</th>${cols.map((k,i)=>`<th class="${i===0?"":cls(totals[k][c]||0)}">${money(totals[k][c]||0,c)}</th>`).join("")}</tr>`).join("");
     $("selectedProfitLabel").textContent=labelForRange();setMoney("selectedProfit",totals.range);setMoney("weekProfit",totals.week);setMoney("monthProfit",totals.month);setMoney("allProfit",totals.all);setMoney("floating",totals.float);
-    setMoney("totalBalance",totals.balance);setMoney("totalEquity",totals.equity);setMoney("marginUsed",totals.margin);setMoney("freeMargin",totals.free);$("openPositions").textContent=totals.positions;$("accountsOpen").textContent=`${accounts.filter(a=>{const s=snapMap.get(`${a.login}|${a.server}`);return s&&Date.now()-Date.parse(s.updatedAt)<=15000&&n(s.openPositions)>0}).length}/${totals.live} live accounts open`;
+    setMoney("totalBalance",totals.balance);setMoney("totalEquity",totals.equity);setMoney("marginUsed",totals.margin);setMoney("freeMargin",totals.free);
+    $("openPositions").textContent=totals.positions;
+    $("accountsOpen").textContent=`${accounts.filter(a=>{const s=snapMap.get(`${a.login}|${a.server}`);return s&&Date.now()-Date.parse(s.updatedAt)<=15000&&n(s.openPositions)>0}).length}/${totals.live} live accounts open`;
   }
-  function setMoney(id,v){const e=$(id);e.textContent=money(v,"USC");e.classList.remove("positive","negative","neutral");e.classList.add(cls(v));}
+  function setMoney(id,map){const e=$(id);e.textContent=currencyText(map);e.classList.remove("positive","negative","neutral");}
   async function post(path,data){const r=await fetch(WORKER_URL+path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});const j=await r.json();if(!r.ok)throw new Error(j.error||`HTTP ${r.status}`);return j;}
   async function loadProfit(){if(!accounts.length)return;const r=chosenRange();if(!r.from||!r.to||r.from>r.to)return;const start=toStamp(r.from),end=toStamp(r.to)+86400,today=serverDate(),week=monday(today),month=firstMonth(today);const q=await post("/api/deals/query",{accounts,fromTime:start,toExclusive:end,throughExclusive:toStamp(dateString(shift(today,1))),weekStart:toStamp(dateString(week)),monthStart:toStamp(dateString(month))});profitRows=q.profits||[];}
   async function refresh(silent=false){if(busy||!accounts.length)return;busy=true;try{const r=await post("/api/snapshots",{accounts});snapshots=r.snapshots||[];setConnection(true);if(selectedRange!=="custom"){const d=rangeDates(selectedRange);updateDateInputs(d.from,d.to);}await loadProfit();render();const count=profitRows.reduce((a,p)=>a+n(p.dealCount),0);if(count===0&& !silent)$("notice").textContent="Waiting for MT5 closed-deal history to sync. Keep the dashboard open while the EA is active.";}catch(e){setConnection(false);if(!silent)$("notice").textContent=e.message;}finally{busy=false;}}
