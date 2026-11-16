@@ -1,84 +1,51 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#101827">
-  <title>MT5 Client Monitor</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0a1423"><title>Mab KaaKoo MT5 Client Monitor</title>
+<link rel="stylesheet" href="style.css"><script defer src="config.js"></script><script defer src="app.js"></script>
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand"><div class="brand-mark">M</div><div><strong>MT5 Client Monitor</strong><small>Account overview</small></div></div>
-    <div class="top-actions">
-      <div id="connectionStatus" class="connection-status connecting" role="status" aria-live="polite"><span class="connection-dot">•</span><span class="connection-text">Connecting...</span></div>
-      <button id="addBtn" class="button">＋ Add Account</button>
+<header class="topbar">
+  <div class="brand"><div class="logo">M</div><div><b>MT5 Client Monitor</b><small>Account overview</small></div></div>
+  <div class="topright"><span id="connection" class="connection"><i></i> Connecting</span><button class="btn primary" id="openAdd">＋ Add Account</button></div>
+</header>
+<main class="wrap">
+  <section class="periodbar">
+    <div class="periods" id="periods">
+      <button class="period active" data-period="today">Today</button><button class="period" data-period="yesterday">Yesterday</button><button class="period" data-period="this_week">This week</button><button class="period" data-period="last_week">Last week</button><button class="period" data-period="this_month">This month</button><button class="period" data-period="last_month">Last month</button>
     </div>
-  </header>
-  <main class="wrap">
-    <div class="range-toolbar" aria-label="Profit date range">
-      <div class="range-presets" role="group" aria-label="Quick date ranges">
-        <button type="button" class="range-btn active" data-range="today">Today</button>
-        <button type="button" class="range-btn" data-range="yesterday">Yesterday</button>
-        <button type="button" class="range-btn" data-range="thisWeek">This week</button>
-        <button type="button" class="range-btn" data-range="lastWeek">Last week</button>
-        <button type="button" class="range-btn" data-range="thisMonth">This month</button>
-        <button type="button" class="range-btn" data-range="lastMonth">Last month</button>
-      </div>
-      <div class="custom-range">
-        <label for="dateFrom">From</label>
-        <input type="date" id="dateFrom">
-        <label for="dateTo">To</label>
-        <input type="date" id="dateTo">
-      </div>
-    </div>
-    <div id="notice" class="sr-only" role="status" aria-live="polite"></div>
-    <section class="summary-grid">
-      <article class="metric"><span id="selectedProfitLabel">Today's Profit</span><strong id="selectedProfit">—</strong></article>
-      <article class="metric"><span>This Week</span><strong id="weekProfit">—</strong></article>
-      <article class="metric"><span>This Month</span><strong id="monthProfit">—</strong></article>
-      <article class="metric"><span>All-Time Closed Profit</span><strong id="allProfit">—</strong></article>
-      <article class="metric"><span>Floating P/L</span><strong id="floating">—</strong></article>
-    </section>
-    <section class="panel">
-      <div class="table-scroll">
-        <table class="accounts-table">
-          <colgroup>
-            <col class="col-account">
-            <col class="col-balance">
-            <col class="col-profit">
-            <col class="col-profit">
-            <col class="col-profit">
-            <col class="col-profit">
-            <col class="col-profit">
-          </colgroup>
-          <thead><tr>
-            <th>Account</th><th>Balance</th><th id="selectedRangeHeading">TODAY</th><th>This Week</th><th>This Month</th><th>All Time</th><th>Floating</th>
-          </tr></thead>
-          <tbody id="accountsBody"><tr><td colspan="7" class="empty">No accounts added yet. Select “Add Account” to begin.</td></tr></tbody><tfoot id="accountsFoot"></tfoot>
-        </table>
-      </div>
-    </section>
-    <section class="summary-grid lower">
-      <article class="metric"><span>Total Balance</span><strong id="totalBalance">—</strong></article>
-      <article class="metric"><span>Total Equity</span><strong id="totalEquity">—</strong></article>
-      <article class="metric"><span>Margin Used</span><strong id="marginUsed">—</strong></article>
-      <article class="metric"><span>Free Margin</span><strong id="freeMargin">—</strong></article>
-      <article class="metric open-position-metric"><span>Open Positions</span><div class="open-position-value"><strong id="openPositions">—</strong><span id="accountsOpen">0/0 accounts open</span></div></article>
-    </section>
-    <footer>MT5 Client Monitor · Version 1.35 · Data is supplied by the monitoring EA running in MT5.</footer>
-  </main>
+    <div class="date-range"><label>From <input type="date" id="dateFrom"></label><label>To <input type="date" id="dateTo"></label></div>
+  </section>
+  <section class="summary" id="summary">
+    <article class="tile"><small>Today's Profit</small><strong id="sumToday">Waiting...</strong></article>
+    <article class="tile"><small>This Week</small><strong id="sumWeek">Waiting...</strong></article>
+    <article class="tile"><small>This Month</small><strong id="sumMonth">Waiting...</strong></article>
+    <article class="tile"><small>All-Time Closed Profit</small><strong id="sumAll">Waiting...</strong></article>
+    <article class="tile"><small>Floating P/L</small><strong id="sumFloating">—</strong></article>
+  </section>
+  <section class="table-panel">
+    <div class="table-scroll"><table><thead><tr><th>ACCOUNT</th><th>BALANCE</th><th>TODAY</th><th>THIS WEEK</th><th>THIS MONTH</th><th>ALL TIME</th><th>FLOATING</th></tr></thead><tbody id="accountsBody"><tr><td colspan="7" class="empty">No MT5 accounts added yet. Click “Add Account” to connect your first account.</td></tr></tbody><tfoot id="accountsFoot"></tfoot></table></div>
+  </section>
+  <section class="lower-summary">
+    <article class="tile"><small>Total Balance</small><strong id="totalBalance">—</strong></article>
+    <article class="tile"><small>Total Equity</small><strong id="totalEquity">—</strong></article>
+    <article class="tile"><small>Margin Used</small><strong id="totalMargin">—</strong></article>
+    <article class="tile"><small>Free Margin</small><strong id="totalFreeMargin">—</strong></article>
+    <article class="tile"><small>Open Positions</small><strong id="totalPositions">0</strong><span id="liveCount" class="muted">0 live accounts open</span></article>
+  </section>
+  <div class="footnote">MT5 Client Monitor · Data is supplied by the monitoring EA running in MetaTrader 5.</div>
+</main>
 
-  <dialog id="addDialog">
-    <form id="addForm" method="dialog">
-      <div class="dialog-head"><div><h2>Add MT5 Account</h2><p>Enter the details shown by the monitoring EA.</p></div><button type="button" class="close" id="closeDialog">×</button></div>
-      <label>MT5 Account Number<input id="loginInput" inputmode="numeric" required placeholder="e.g. 12345678"></label>
-      <label>Broker Server<input id="serverInput" required placeholder="e.g. Exness-MT5Real"></label>
-      <label>6-digit Keycode<input id="keyInput" required minlength="6" maxlength="6" inputmode="numeric" pattern="[0-9]{6}" autocomplete="off" placeholder="Copy from the EA chart"></label>
-      <div class="dialog-actions"><button type="button" id="cancelBtn" class="button">Cancel</button><button type="submit" class="button primary">Add Account</button></div>
-      <p class="hint">The account is saved only in this browser. If browser storage is cleared, add it again using the same 6-digit Keycode.</p>
-    </form>
-  </dialog>
-  <script src="app.js"></script>
-</body>
-</html>
+<dialog id="addDialog">
+ <form id="addForm" method="dialog">
+  <div class="modal-head"><div><span class="eyebrow">CONNECT META TRADER 5</span><h2>Add MT5 Account</h2><p>Enter the details shown by your Mab KaaKoo Monitor EA.</p></div><button type="button" class="xbtn" id="closeAdd" aria-label="Close">×</button></div>
+  <label for="accountNumber">MT5 Account Number</label><input id="accountNumber" name="accountNumber" inputmode="numeric" placeholder="Enter account number" required>
+  <label for="brokerServer">Broker Server Name</label><input id="brokerServer" name="brokerServer" placeholder="e.g. Exness-MT5Trial17" required>
+  <label for="pairCode">6-Digit Pairing Code</label><input id="pairCode" name="pairCode" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+  <div id="formMessage" class="form-message"></div>
+  <div class="modal-actions"><button type="button" class="btn secondary" id="cancelAdd">Cancel</button><button type="submit" class="btn primary" id="submitAdd">Add Account</button></div>
+ </form>
+</dialog>
+<div id="toast" class="toast"></div>
+</body></html>
