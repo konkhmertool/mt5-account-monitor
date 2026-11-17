@@ -6,13 +6,32 @@ const DEVICE_KEY='mab_kaakoo_device_id';
 const $=id=>document.getElementById(id);
 let accounts=[],selectedAccountKey=null,period='today',fromDate='',toDate='';
 
+const BACKUP_KEY='mab_kaakoo_paired_accounts_backup_v1';
+const KNOWN_ACCOUNT_KEYS=[ACCOUNTS_KEY,BACKUP_KEY,'mab_kaakoo_accounts_v1','mab_kaakoo_accounts','mt5_monitor_accounts','mt5Accounts'];
+function parseAccountList(raw){try{const x=JSON.parse(raw||'[]');return Array.isArray(x)?x.filter(v=>v&&typeof v==='object'&&v.token):[]}catch{return []}}
 function readSaved(){
-  let a=[];try{const x=JSON.parse(localStorage.getItem(ACCOUNTS_KEY)||'[]');if(Array.isArray(x))a=x.filter(v=>v&&v.token)}catch{}
-  const old=localStorage.getItem(LEGACY_KEY);if(old&&!a.some(v=>v.token===old))a.push({token:old,alias:'',login:'',server:''});
-  return a;
+  let saved=[];
+  for(const k of KNOWN_ACCOUNT_KEYS){saved=merge(saved,parseAccountList(localStorage.getItem(k)))}
+  const old=localStorage.getItem(LEGACY_KEY);
+  if(old&&!saved.some(v=>v.token===old))saved.push({token:old,alias:'',login:'',server:''});
+  return saved;
 }
-function merge(a,b){const out=[...a];for(const n of b){const i=out.findIndex(x=>x.token===n.token||(x.login&&n.login&&x.login===n.login&&x.server===n.server));if(i<0)out.push(n);else out[i]={...out[i],...n}}return out}
-function save(){accounts=merge(readSaved(),accounts);localStorage.setItem(ACCOUNTS_KEY,JSON.stringify(accounts));localStorage.removeItem(LEGACY_KEY)}
+function merge(a,b){
+  const out=[...a];
+  for(const n of b){
+    const i=out.findIndex(x=>(x.token&&n.token&&x.token===n.token)||(x.login&&n.login&&x.login===n.login&&x.server===n.server));
+    if(i<0)out.push(n);else out[i]={...out[i],...n};
+  }
+  return out;
+}
+function save(){
+  accounts=merge(readSaved(),accounts);
+  const payload=JSON.stringify(accounts);
+  // Keep a backup before replacing the primary copy. Never silently clear the list.
+  localStorage.setItem(BACKUP_KEY,payload);
+  localStorage.setItem(ACCOUNTS_KEY,payload);
+  localStorage.removeItem(LEGACY_KEY);
+}
 function key(a){return a.login+'|'+a.server}
 function currency(a){return a.accountData?.currency||''}
 function money(v,c=''){if(v===null||v===undefined||v===''||!Number.isFinite(Number(v)))return '—';return Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+(c?' '+c:'')}
@@ -45,7 +64,7 @@ function dateChanged(){fromDate=$('dateFrom').value;toDate=$('dateTo').value;doc
 function addCell(tr,text,cls=''){const td=document.createElement('td');td.textContent=text??'—';if(cls)td.className=cls;tr.appendChild(td);return td}
 function nameCell(tr,a){const td=document.createElement('td');const b=document.createElement('span');b.className='account-main';b.textContent=a.alias||a.login||'MT5 account';const s=document.createElement('span');s.className='account-sub';s.textContent=(a.login||'')+' · '+(a.server||'');td.append(b,s);tr.appendChild(td)}
 function render(){
- const usable=accounts.filter(a=>a.accountData);const selected=usable.find(a=>key(a)===selectedAccountKey)||null;
+ const usable=accounts;const selected=usable.find(a=>key(a)===selectedAccountKey)||null;
  $('profitScope').textContent=selected?(selected.alias||selected.login):'all accounts';
  const ccy=[...new Set(usable.map(currency).filter(Boolean))];const c=ccy.length===1?ccy[0]:(ccy.length?'Mixed':'');
  const sum=k=>usable.reduce((n,a)=>n+Number(val(a,k)||0),0);
@@ -85,8 +104,31 @@ function render(){
  for(const p of filtered){const tr=document.createElement('tr');const a=p._account;addCell(tr,a.alias||a.login);addCell(tr,p.ticket);addCell(tr,p.symbol);addCell(tr,p.type,p.type==='BUY'?'type-buy':'type-sell');addCell(tr,p.volume);addCell(tr,p.open_price??'—');addCell(tr,p.current_price??'—');addCell(tr,p.sl??'—');addCell(tr,p.tp??'—');addCell(tr,money(p.swap,currency(a)));addCell(tr,money(p.profit,currency(a)),Number(p.profit)<0?'negative':'positive');$('positionRows').append(tr)}
 }
 function selectAccount(a){selectedAccountKey=selectedAccountKey===key(a)?null:key(a);render()}
-async function fetchAccount(a){const r=await api('/api/client/account',{auth:a.token});a.accountData=r.account||{};a.login=a.accountData.account_login||a.login;a.server=a.accountData.broker_server||a.server;if(!a.alias)a.alias=a.login;return a}
-async function restore(){ $('systemStatus').textContent='Loading';const saved=readSaved();const refreshed=[];for(const a of saved){try{refreshed.push(await fetchAccount({...a}))}catch{refreshed.push(a)}}accounts=merge(readSaved(),refreshed);save();render();$('systemStatus').textContent='Ready'}
+async function fetchAccount(a){
+ const r=await api('/api/client/account',{auth:a.token});
+ if(r.account){a.accountData={...(a.accountData||{}),...r.account};}
+ a.login=a.accountData?.account_login||a.login||r.account?.login;
+ a.server=a.accountData?.broker_server||a.server||r.account?.server;
+ if(!a.alias)a.alias=a.login;
+ a.lastFetchError='';
+ return a;
+}
+async function restore(){
+ $('systemStatus').textContent='Restoring';
+ const saved=readSaved();
+ accounts=merge(accounts,saved);
+ // Render the saved account list immediately; live data can update afterward.
+ render();
+ const refreshed=[];
+ for(const a of saved){
+   try{refreshed.push(await fetchAccount({...a}));}
+   catch(err){refreshed.push({...a,lastFetchError:err.message||'Unable to refresh account'});}
+ }
+ accounts=merge(saved,refreshed);
+ try{save();}catch(err){console.error('Account storage failed:',err);$('systemStatus').textContent='Storage error';}
+ render();
+ $('systemStatus').textContent='Ready';
+}
 function deviceId(){let v=localStorage.getItem(DEVICE_KEY);if(!v){v=crypto.randomUUID?crypto.randomUUID():String(Date.now());localStorage.setItem(DEVICE_KEY,v)}return 'browser-'+v}
 function openModal(){$('addModal').classList.remove('hidden');$('accountLogin').focus()}
 function closeModal(){$('addModal').classList.add('hidden');$('formMessage').textContent='';$('addAccountForm').reset()}
@@ -95,5 +137,5 @@ $('addModal').addEventListener('click',e=>{if(e.target===$('addModal'))closeModa
 document.querySelectorAll('.period').forEach(b=>b.addEventListener('click',()=>setPeriod(b.dataset.period)));
 $('dateFrom').addEventListener('change',dateChanged);$('dateTo').addEventListener('change',dateChanged);$('symbolFilter').addEventListener('input',render);
 $('clearAccountFilter').addEventListener('click',()=>{selectedAccountKey=null;render()});
-$('addAccountForm').addEventListener('submit',async e=>{e.preventDefault();const btn=$('loginButton'),msg=$('formMessage');btn.disabled=true;btn.textContent='Connecting…';msg.textContent='Checking pairing code…';const login=$('accountLogin').value.trim(),server=$('accountServer').value.trim(),pairingCode=$('accountCode').value.trim(),alias=$('accountAlias').value.trim();try{const r=await api('/api/client/pair',{method:'POST',body:JSON.stringify({login,server,pairingCode,deviceId:deviceId()})});const a=await fetchAccount({token:r.token,login,server,alias,accountData:null});accounts=merge(readSaved(),accounts);accounts=merge(accounts,[a]);save();selectedAccountKey=null;render();closeModal()}catch(err){msg.textContent=err.message||'Unable to pair account'}finally{btn.disabled=false;btn.textContent='Login'}});
+$('addAccountForm').addEventListener('submit',async e=>{e.preventDefault();const btn=$('loginButton'),msg=$('formMessage');btn.disabled=true;btn.textContent='Connecting…';msg.textContent='Checking pairing code…';const login=$('accountLogin').value.trim(),server=$('accountServer').value.trim(),pairingCode=$('accountCode').value.trim(),alias=$('accountAlias').value.trim();try{const r=await api('/api/client/pair',{method:'POST',body:JSON.stringify({login,server,pairingCode,deviceId:deviceId()})});const paired={token:r.token,login,server,alias,accountData:null};accounts=merge(readSaved(),accounts);accounts=merge(accounts,[paired]);save();render();msg.textContent='Pairing saved. Loading account data…';const a=await fetchAccount(paired);accounts=merge(accounts,[a]);save();selectedAccountKey=null;render();closeModal()}catch(err){msg.textContent=err.message||'Unable to pair account'}finally{btn.disabled=false;btn.textContent='Login'}});
 setPeriod('today');restore();
