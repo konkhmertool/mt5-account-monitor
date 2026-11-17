@@ -267,7 +267,7 @@ function render(){
   footer.replaceChildren();
 
   if(!usable.length){
-    $('accountRows').innerHTML='<tr><td colspan="9" class="empty-row">Add an account to see its information here.</td></tr>';
+    $('accountRows').innerHTML='<tr><td colspan="6" class="empty-row">Add an account to see its information here.</td></tr>';
   }
 
   usable.forEach((a,index)=>{
@@ -275,14 +275,12 @@ function render(){
 
     if(selectedAccountKey===key(a))tr.classList.add('selected');
     nameCell(tr,a,index+1,on);
-    addCell(tr,money(d.balance,cc),Number(d.balance)>0?'positive':Number(d.balance)<0?'negative':'neutral');
-    addCell(tr,money(d.equity,cc),Number(d.equity)>0?'positive':Number(d.equity)<0?'negative':'neutral');
+    // Closed-profit columns stay blank until MT5 history sync is implemented.
     addCell(tr,'—');
     addCell(tr,'—');
     addCell(tr,'—');
     addCell(tr,'—');
     addCell(tr,money(d.floating_profit,cc),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'neutral');
-    addCell(tr,on?'● Online':'● Offline',on?'online':'offline');
     tr.addEventListener('click',()=>selectAccount(a));
     $('accountRows').appendChild(tr);
 
@@ -406,15 +404,12 @@ function render(){
       }
       ftr.append(td);
     };
-    appendTotals('balance');
-    appendTotals('equity');
-    addCell(ftr,'—');
-    addCell(ftr,'—');
-    addCell(ftr,'—');
-    addCell(ftr,'—');
+    // Closed-profit history is not yet supplied, so do not invent totals.
+    addCell(ftr,'—','account-total-values');
+    addCell(ftr,'—','account-total-values');
+    addCell(ftr,'—','account-total-values');
+    addCell(ftr,'—','account-total-values');
     appendTotals('floating_profit');
-    const status=addCell(ftr,`${online}/${usable.length} ONLINE`);
-    status.className='account-total-status';
     footer.append(ftr);
   }
 
