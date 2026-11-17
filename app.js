@@ -1,170 +1,100 @@
 'use strict';
-const API_BASE = 'https://monitor.mt5dashboard.workers.dev';
-const ACCOUNTS_KEY = 'mab_kaakoo_paired_accounts_v1';
-const LEGACY_SESSION_KEY = 'mab_kaakoo_client_session_v1';
-const DEVICE_KEY = 'mab_kaakoo_device_id';
-const $ = id => document.getElementById(id);
-let savedAccounts = [];
-let restoreFinished = false;
+const API_BASE='https://monitor.mt5dashboard.workers.dev';
+const ACCOUNTS_KEY='mab_kaakoo_paired_accounts_v1';
+const LEGACY_KEY='mab_kaakoo_client_session_v1';
+const DEVICE_KEY='mab_kaakoo_device_id';
+const $=id=>document.getElementById(id);
+let accounts=[],selectedAccountKey=null,period='today',fromDate='',toDate='';
 
-function readStoredAccounts() {
-  let list = [];
-  try {
-    const raw = JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
-    if (Array.isArray(raw)) list = raw.filter(x => x && x.token);
-  } catch {}
-  // Migrate the old single-session format without dropping it.
-  const legacy = localStorage.getItem(LEGACY_SESSION_KEY);
-  if (legacy && !list.some(x => x.token === legacy)) {
-    list.push({token:legacy, alias:'', login:'', server:'', accountData:null});
+function readSaved(){
+  let a=[];try{const x=JSON.parse(localStorage.getItem(ACCOUNTS_KEY)||'[]');if(Array.isArray(x))a=x.filter(v=>v&&v.token)}catch{}
+  const old=localStorage.getItem(LEGACY_KEY);if(old&&!a.some(v=>v.token===old))a.push({token:old,alias:'',login:'',server:''});
+  return a;
+}
+function merge(a,b){const out=[...a];for(const n of b){const i=out.findIndex(x=>x.token===n.token||(x.login&&n.login&&x.login===n.login&&x.server===n.server));if(i<0)out.push(n);else out[i]={...out[i],...n}}return out}
+function save(){accounts=merge(readSaved(),accounts);localStorage.setItem(ACCOUNTS_KEY,JSON.stringify(accounts));localStorage.removeItem(LEGACY_KEY)}
+function key(a){return a.login+'|'+a.server}
+function currency(a){return a.accountData?.currency||''}
+function money(v,c=''){if(v===null||v===undefined||v===''||!Number.isFinite(Number(v)))return '—';return Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+(c?' '+c:'')}
+function val(a,k){return a.accountData?.[k]}
+function isOnline(a){const t=val(a,'updated_at');if(!t)return false;const ms=new Date(String(t).replace(' ','T')+'Z').getTime();return Number.isFinite(ms)&&Date.now()-ms<120000}
+async function api(path,opt={}){const h={'Content-Type':'application/json',...(opt.headers||{})};if(opt.auth)h.Authorization='Bearer '+opt.auth;const r=await fetch(API_BASE+path,{...opt,headers:h});let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||'Request failed '+r.status);return d}
+function accountData(a){return a.accountData||{}}
+function allPositions(){
+  const rows=[];
+  for(const a of accounts){let raw=val(a,'positions_json');let ps=[];try{ps=typeof raw==='string'?JSON.parse(raw||'[]'):(Array.isArray(raw)?raw:[])}catch{}
+    for(const p of ps)rows.push({...p,_account:a});
   }
-  return list;
+  return rows;
 }
-function mergeAccounts(base, incoming) {
-  const merged = [...base];
-  for (const item of incoming) {
-    const i = merged.findIndex(x =>
-      (x.login && item.login && x.login === item.login && x.server === item.server) ||
-      (x.token && item.token && x.token === item.token)
-    );
-    if (i >= 0) merged[i] = {...merged[i], ...item};
-    else merged.push(item);
-  }
-  return merged;
+function getPeriodDates(p){
+  const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Phnom_Penh',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()).split('-').map(Number);
+  const today=new Date(Date.UTC(parts[0],parts[1]-1,parts[2]));
+  const iso=d=>d.toISOString().slice(0,10);
+  const dow=(today.getUTCDay()+6)%7;
+  let s=new Date(today),e=new Date(today);
+  if(p==='yesterday'){s.setUTCDate(s.getUTCDate()-1);e=new Date(s)}
+  if(p==='this_week')s.setUTCDate(s.getUTCDate()-dow);
+  if(p==='last_week'){s.setUTCDate(s.getUTCDate()-dow-7);e=new Date(s);e.setUTCDate(e.getUTCDate()+6)}
+  if(p==='this_month')s.setUTCDate(1);
+  if(p==='last_month'){s.setUTCDate(1);s.setUTCMonth(s.getUTCMonth()-1);e=new Date(s);e.setUTCMonth(e.getUTCMonth()+1);e.setUTCDate(0)}
+  return [iso(s),iso(e)];
 }
-function saveAccounts() {
-  // Re-read storage immediately before writing, so a late restore or another
-  // successful pairing cannot overwrite accounts already saved by this browser.
-  const latest = readStoredAccounts();
-  savedAccounts = mergeAccounts(latest, savedAccounts);
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(savedAccounts));
-  localStorage.removeItem(LEGACY_SESSION_KEY);
+function setPeriod(p){period=p;document.querySelectorAll('.period').forEach(b=>b.classList.toggle('active',b.dataset.period===p));[fromDate,toDate]=getPeriodDates(p);$('dateFrom').value=fromDate;$('dateTo').value=toDate;$('profitPeriodLabel').textContent='PROFIT · '+p.replace('_',' ').toUpperCase();$('profitColSelected').textContent=p.replace('_',' ').toUpperCase();render()}
+function dateChanged(){fromDate=$('dateFrom').value;toDate=$('dateTo').value;document.querySelectorAll('.period').forEach(b=>b.classList.remove('active'));$('profitPeriodLabel').textContent='PROFIT · SELECTED DATES';$('profitColSelected').textContent='SELECTED DATES';render()}
+function addCell(tr,text,cls=''){const td=document.createElement('td');td.textContent=text??'—';if(cls)td.className=cls;tr.appendChild(td);return td}
+function nameCell(tr,a){const td=document.createElement('td');const b=document.createElement('span');b.className='account-main';b.textContent=a.alias||a.login||'MT5 account';const s=document.createElement('span');s.className='account-sub';s.textContent=(a.login||'')+' · '+(a.server||'');td.append(b,s);tr.appendChild(td)}
+function render(){
+ const usable=accounts.filter(a=>a.accountData);const selected=usable.find(a=>key(a)===selectedAccountKey)||null;
+ $('profitScope').textContent=selected?(selected.alias||selected.login):'all accounts';
+ const ccy=[...new Set(usable.map(currency).filter(Boolean))];const c=ccy.length===1?ccy[0]:(ccy.length?'Mixed':'');
+ const sum=k=>usable.reduce((n,a)=>n+Number(val(a,k)||0),0);
+ const bal=sum('balance'),eq=sum('equity'),fl=sum('floating_profit'),pos=allPositions();
+ const closedAvailable=usable.some(a=>val(a,'today_closed_profit')!==null&&val(a,'today_closed_profit')!==undefined);
+ // Historical closed-profit data is not supplied by the current Monitor EA; never invent values.
+ $('profitSelected').textContent='—';$('profitWeek').textContent='—';$('profitMonth').textContent='—';$('profitAll').textContent='—';
+ $('profitSelectedNote').textContent=closedAvailable?'Historical totals require MT5 history sync':'Closed-trade history not yet supplied by Monitor EA';
+ $('profitFloating').textContent=money(selected?val(selected,'floating_profit'):fl,selected?currency(selected):c);
+ $('totalBalance').textContent=money(bal,c);$('totalEquity').textContent=money(eq,c);$('totalFloating').textContent=money(fl,c);
+ $('totalMargin').textContent='—';$('totalFreeMargin').textContent='—';
+ $('totalPositions').textContent=String(pos.length);$('openPositionCount').textContent=String(pos.length);
+ const online=usable.filter(isOnline).length;$('onlineCount').textContent=`${online}/${usable.length} accounts online`;$('onlineSummary').textContent=usable.length?`${online} account${online===1?'':'s'} online`:'All accounts offline';
+ $('accountCount').textContent=String(usable.length);
+ $('accountsEmpty').classList.toggle('hidden',usable.length>0);$('accountsTableWrap').classList.toggle('hidden',usable.length===0);
+ $('accountRows').replaceChildren();$('profitRows').replaceChildren();$('accountCards').replaceChildren();
+ if(!usable.length){$('profitRows').innerHTML='<tr><td colspan="6" class="empty-row">Add an account to see its profit here.</td></tr>'}
+ for(const a of usable){
+  const d=accountData(a),cc=currency(a),on=isOnline(a),tr=document.createElement('tr');
+  if(selectedAccountKey===key(a))tr.classList.add('selected');
+  nameCell(tr,a);addCell(tr,money(d.balance,cc));addCell(tr,money(d.equity,cc));addCell(tr,'—');addCell(tr,'—');addCell(tr,'—');addCell(tr,'—');addCell(tr,money(d.floating_profit,cc),Number(d.floating_profit)<0?'negative':'positive');
+  const st=addCell(tr,on?'● Online':'● Offline',on?'online':'offline');tr.addEventListener('click',()=>selectAccount(a));$('accountRows').appendChild(tr);
+  const pr=document.createElement('tr');nameCell(pr,a);for(let i=0;i<4;i++)addCell(pr,'—');addCell(pr,money(d.floating_profit,cc));$('profitRows').appendChild(pr);
+  const card=document.createElement('article');card.className='account-card'+(selectedAccountKey===key(a)?' selected':'');card.tabIndex=0;
+  const head=document.createElement('div');head.className='account-card-head';const title=document.createElement('div');title.innerHTML=`<div class="account-card-title"></div><div class="account-card-sub"></div>`;title.querySelector('.account-card-title').textContent=a.alias||a.login;title.querySelector('.account-card-sub').textContent=`${a.login} · ${a.server}`;const pill=document.createElement('span');pill.className='status-pill';pill.textContent=on?'ONLINE':'OFFLINE';head.append(title,pill);card.append(head);
+  const metrics=document.createElement('div');metrics.className='account-metrics';
+  const metric=(label,value)=>{const el=document.createElement('div');el.className='metric';const l=document.createElement('span');l.textContent=label;const b=document.createElement('b');b.textContent=value;el.append(l,b);metrics.append(el)};
+  metric('Balance',money(d.balance,cc));metric('Equity',money(d.equity,cc));metric('Margin','—');metric('Free margin','—');metric('Floating P/L',money(d.floating_profit,cc));metric('Margin level','—');metric('Open positions',String(d.open_positions??0));metric('Symbol',d.symbol||'—');card.append(metrics);
+  const foot=document.createElement('div');foot.className='account-card-foot';const last=document.createElement('span');last.textContent='Last update: '+(d.updated_at||'—');const view=document.createElement('span');view.textContent='View positions →';foot.append(last,view);card.append(foot);
+  card.addEventListener('click',()=>selectAccount(a));card.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectAccount(a)}});$('accountCards').append(card);
+ }
+ $('selectionHint').textContent=selected?`Showing positions for ${selected.alias||selected.login}`:'Select an account to filter positions';
+ $('clearAccountFilter').classList.toggle('hidden',!selected);
+ let filtered=pos.filter(p=>!selected||key(p._account)===selectedAccountKey);
+ const q=$('symbolFilter').value.trim().toLowerCase();if(q)filtered=filtered.filter(p=>String(p.symbol||'').toLowerCase().includes(q));
+ $('positionRows').replaceChildren();
+ if(!filtered.length){$('positionRows').innerHTML='<tr><td colspan="11" class="empty-row">No open positions.</td></tr>'}
+ for(const p of filtered){const tr=document.createElement('tr');const a=p._account;addCell(tr,a.alias||a.login);addCell(tr,p.ticket);addCell(tr,p.symbol);addCell(tr,p.type,p.type==='BUY'?'type-buy':'type-sell');addCell(tr,p.volume);addCell(tr,p.open_price??'—');addCell(tr,p.current_price??'—');addCell(tr,p.sl??'—');addCell(tr,p.tp??'—');addCell(tr,money(p.swap,currency(a)));addCell(tr,money(p.profit,currency(a)),Number(p.profit)<0?'negative':'positive');$('positionRows').append(tr)}
 }
-function getDeviceId() {
-  let device = localStorage.getItem(DEVICE_KEY);
-  if (!device) {
-    device = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
-    localStorage.setItem(DEVICE_KEY, device);
-  }
-  return 'browser-' + device;
-}
-function openModal(){ $('addModal').classList.remove('hidden'); $('accountLogin').focus(); }
-function closeModal(){ $('addModal').classList.add('hidden'); $('formMessage').textContent=''; $('addAccountForm').reset(); }
-$('openAdd').addEventListener('click',openModal);
-$('emptyAdd').addEventListener('click',openModal);
-$('closeModal').addEventListener('click',closeModal);
-$('cancelModal').addEventListener('click',closeModal);
-$('addModal').addEventListener('click',e=>{if(e.target===$('addModal'))closeModal();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
-
-function setActivePeriod(button){
-  document.querySelectorAll('.period').forEach(b=>b.classList.toggle('active',b===button));
-  $('profitPeriodLabel').textContent='PROFIT · '+button.dataset.period.toUpperCase();
-}
-document.querySelectorAll('.period').forEach(b=>b.addEventListener('click',()=>setActivePeriod(b)));
-
-function money(v,c=''){if(v===null||v===undefined||v==='')return '—';return Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+(c?' '+c:'');}
-function api(path,options={}) {
-  const headers={'Content-Type':'application/json',...(options.headers||{})};
-  if(options.auth)headers.Authorization='Bearer '+options.auth;
-  return fetch(API_BASE+path,{...options,headers}).then(async r=>{
-    let d={};try{d=await r.json()}catch{}
-    if(!r.ok)throw new Error(d.error||'Request failed ('+r.status+')');
-    return d;
-  });
-}
-function makeCell(row,text,className='') {
-  const td=document.createElement('td');td.textContent=text??'—';if(className)td.className=className;row.appendChild(td);return td;
-}
-function accountAliasCell(row,a) {
-  const td=document.createElement('td');
-  const main=document.createElement('span');main.className='account-main';main.textContent=a.alias||a.login||'MT5 Account';
-  const sub=document.createElement('span');sub.className='account-sub';sub.textContent=`${a.login||''} · ${a.server||''}`;
-  td.append(main,sub);row.appendChild(td);
-}
-function renderAccounts() {
-  const valid=savedAccounts.filter(a=>a && a.token && a.accountData);
-  $('accountCount').textContent=String(valid.length);
-  if(!valid.length){$('accountsEmpty').classList.remove('hidden');$('accountsTableWrap').classList.add('hidden');}
-  else{$('accountsEmpty').classList.add('hidden');$('accountsTableWrap').classList.remove('hidden');}
-  $('accountRows').replaceChildren();$('profitRows').replaceChildren();
-  let totals={balance:0,equity:0,floating:0,positions:0,online:0};
-  const currencies=new Set();
-  for(const a of valid){
-    const d=a.accountData||{},c=d.currency||'';
-    if(c)currencies.add(c);
-    totals.balance+=Number(d.balance||0);totals.equity+=Number(d.equity||0);
-    totals.floating+=Number(d.floating_profit||0);totals.positions+=Number(d.open_positions||0);
-    const stamp=d.updated_at?new Date(String(d.updated_at).replace(' ','T')+'Z').getTime():0;
-    const online=stamp && Date.now()-stamp<120000;
-    if(online)totals.online++;
-    const tr=document.createElement('tr');accountAliasCell(tr,a);
-    makeCell(tr,money(d.balance,c));makeCell(tr,money(d.equity,c));
-    makeCell(tr,'—');makeCell(tr,'—');makeCell(tr,'—');makeCell(tr,'—');
-    makeCell(tr,money(d.floating_profit,c),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'');
-    const status=document.createElement('td');status.innerHTML=online?'<span class="online">● Online</span>':'<span class="offline">● Offline</span>';tr.appendChild(status);
-    $('accountRows').appendChild(tr);
-    const pr=document.createElement('tr');accountAliasCell(pr,a);
-    for(let i=0;i<4;i++)makeCell(pr,'—');
-    makeCell(pr,money(d.floating_profit,c));$('profitRows').appendChild(pr);
-  }
-  const currency=currencies.size===1?[...currencies][0]:(currencies.size>1?'Mixed':'');
-  $('totalBalance').textContent=valid.length?money(totals.balance,currency):'—';
-  $('totalEquity').textContent=valid.length?money(totals.equity,currency):'—';
-  $('totalFloating').textContent=valid.length?money(totals.floating,currency):'—';
-  $('profitFloating').textContent=valid.length?money(totals.floating,currency):'—';
-  $('totalPositions').textContent=String(totals.positions);
-  $('onlineCount').textContent=`${totals.online}/${valid.length} accounts online`;
-  $('onlineSummary').textContent=valid.length?`${totals.online} account${totals.online===1?'':'s'} online`:'All accounts online';
-  $('openPositionCount').textContent=String(totals.positions);
-  $('positionRows').innerHTML='<tr><td colspan="11" class="empty-row">No open positions.</td></tr>';
-}
-async function fetchAccount(entry) {
-  const result=await api('/api/client/account',{method:'GET',auth:entry.token});
-  entry.accountData=result.account||{};
-  entry.login=entry.accountData.account_login||entry.login;
-  entry.server=entry.accountData.broker_server||entry.server;
-  if(!entry.alias || entry.alias==='MT5 Account')entry.alias=entry.login||'MT5 Account';
-  return entry;
-}
-async function restoreAccounts() {
-  $('systemStatus').textContent='Loading';
-  const initial=readStoredAccounts();
-  const restored=[];
-  for(const entry of initial) {
-    try { restored.push(await fetchAccount({...entry})); }
-    catch(err) {
-      // Keep temporarily unavailable sessions; never silently delete an account.
-      restored.push(entry);
-    }
-  }
-  savedAccounts=mergeAccounts(readStoredAccounts(),restored);
-  saveAccounts();
-  renderAccounts();
-  restoreFinished=true;
-  $('systemStatus').textContent='Ready';
-  if(savedAccounts.length)$('profitScope').textContent='all accounts';
-}
-$('addAccountForm').addEventListener('submit',async e=>{
-  e.preventDefault();
-  const btn=$('loginButton'),msg=$('formMessage');
-  btn.disabled=true;btn.textContent='Connecting…';msg.textContent='Checking pairing code…';msg.className='form-message';
-  const login=$('accountLogin').value.trim(),server=$('accountServer').value.trim(),code=$('accountCode').value.trim(),alias=$('accountAlias').value.trim();
-  try{
-    const result=await api('/api/client/pair',{method:'POST',body:JSON.stringify({login,server,pairingCode:code,deviceId:getDeviceId()})});
-    const entry={token:result.token,alias,login,server,accountData:null};
-    await fetchAccount(entry);
-    // Merge with current browser storage before adding, preserving every existing account.
-    savedAccounts=mergeAccounts(readStoredAccounts(),savedAccounts);
-    savedAccounts=mergeAccounts(savedAccounts,[entry]);
-    saveAccounts();
-    renderAccounts();
-    closeModal();
-    $('systemStatus').textContent='Ready';
-  }catch(err){msg.textContent=err.message||'Unable to pair account.';}
-  finally{btn.disabled=false;btn.textContent='Login';}
-});
-$('symbolFilter').addEventListener('input',()=>{});
-$('dateFrom').value=new Date().toISOString().slice(0,10);
-$('dateTo').value=new Date().toISOString().slice(0,10);
-restoreAccounts();
+function selectAccount(a){selectedAccountKey=selectedAccountKey===key(a)?null:key(a);render()}
+async function fetchAccount(a){const r=await api('/api/client/account',{auth:a.token});a.accountData=r.account||{};a.login=a.accountData.account_login||a.login;a.server=a.accountData.broker_server||a.server;if(!a.alias)a.alias=a.login;return a}
+async function restore(){ $('systemStatus').textContent='Loading';const saved=readSaved();const refreshed=[];for(const a of saved){try{refreshed.push(await fetchAccount({...a}))}catch{refreshed.push(a)}}accounts=merge(readSaved(),refreshed);save();render();$('systemStatus').textContent='Ready'}
+function deviceId(){let v=localStorage.getItem(DEVICE_KEY);if(!v){v=crypto.randomUUID?crypto.randomUUID():String(Date.now());localStorage.setItem(DEVICE_KEY,v)}return 'browser-'+v}
+function openModal(){$('addModal').classList.remove('hidden');$('accountLogin').focus()}
+function closeModal(){$('addModal').classList.add('hidden');$('formMessage').textContent='';$('addAccountForm').reset()}
+$('openAdd').addEventListener('click',openModal);$('emptyAdd').addEventListener('click',openModal);$('closeModal').addEventListener('click',closeModal);$('cancelModal').addEventListener('click',closeModal);
+$('addModal').addEventListener('click',e=>{if(e.target===$('addModal'))closeModal()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+document.querySelectorAll('.period').forEach(b=>b.addEventListener('click',()=>setPeriod(b.dataset.period)));
+$('dateFrom').addEventListener('change',dateChanged);$('dateTo').addEventListener('change',dateChanged);$('symbolFilter').addEventListener('input',render);
+$('clearAccountFilter').addEventListener('click',()=>{selectedAccountKey=null;render()});
+$('addAccountForm').addEventListener('submit',async e=>{e.preventDefault();const btn=$('loginButton'),msg=$('formMessage');btn.disabled=true;btn.textContent='Connecting…';msg.textContent='Checking pairing code…';const login=$('accountLogin').value.trim(),server=$('accountServer').value.trim(),pairingCode=$('accountCode').value.trim(),alias=$('accountAlias').value.trim();try{const r=await api('/api/client/pair',{method:'POST',body:JSON.stringify({login,server,pairingCode,deviceId:deviceId()})});const a=await fetchAccount({token:r.token,login,server,alias,accountData:null});accounts=merge(readSaved(),accounts);accounts=merge(accounts,[a]);save();selectedAccountKey=null;render();closeModal()}catch(err){msg.textContent=err.message||'Unable to pair account'}finally{btn.disabled=false;btn.textContent='Login'}});
+setPeriod('today');restore();

@@ -11,25 +11,24 @@
 <header class="topbar">
   <div class="top-left"><span class="mt5-badge">MT5</span><strong>Account Monitor</strong></div>
   <div class="top-center"><span class="status-dot"></span><span id="systemStatus">Ready</span></div>
-  <div class="top-right"><span id="onlineSummary">All accounts online</span><button class="add-button" id="openAdd">+ Add account</button></div>
+  <div class="top-right"><span id="onlineSummary">All accounts offline</span><button class="add-button" id="openAdd">+ Add account</button></div>
 </header>
-
 <main class="dashboard">
   <section class="profit-section">
     <div class="profit-title"><strong>Total profit</strong><span id="profitScope">all accounts</span></div>
     <div class="filter-line">
       <div class="period-tabs" id="periodTabs">
-        <button class="period active" data-period="Today">Today</button>
-        <button class="period" data-period="Yesterday">Yesterday</button>
-        <button class="period" data-period="This week">This week</button>
-        <button class="period" data-period="Last week">Last week</button>
-        <button class="period" data-period="This month">This month</button>
-        <button class="period" data-period="Last month">Last month</button>
+        <button class="period active" data-period="today">Today</button>
+        <button class="period" data-period="yesterday">Yesterday</button>
+        <button class="period" data-period="this_week">This week</button>
+        <button class="period" data-period="last_week">Last week</button>
+        <button class="period" data-period="this_month">This month</button>
+        <button class="period" data-period="last_month">Last month</button>
       </div>
       <div class="date-range"><label>From <input type="date" id="dateFrom"></label><label>To <input type="date" id="dateTo"></label></div>
     </div>
     <div class="profit-cards">
-      <article class="profit-card primary"><span id="profitPeriodLabel">PROFIT · TODAY</span><b id="profitToday">—</b></article>
+      <article class="profit-card primary"><span id="profitPeriodLabel">PROFIT · TODAY</span><b id="profitSelected">—</b><small id="profitSelectedNote"></small></article>
       <article class="profit-card"><span>THIS WEEK</span><b id="profitWeek">—</b></article>
       <article class="profit-card"><span>THIS MONTH</span><b id="profitMonth">—</b></article>
       <article class="profit-card"><span>ALL TIME · CLOSED</span><b id="profitAll">—</b></article>
@@ -37,7 +36,7 @@
     </div>
     <div class="table-card profit-table-wrap">
       <table class="profit-table">
-        <thead><tr><th>ACCOUNT</th><th>TODAY</th><th>THIS WEEK</th><th>THIS MONTH</th><th>ALL TIME</th><th>FLOATING</th></tr></thead>
+        <thead><tr><th>ACCOUNT</th><th id="profitColSelected">TODAY</th><th>THIS WEEK</th><th>THIS MONTH</th><th>ALL TIME</th><th>FLOATING</th></tr></thead>
         <tbody id="profitRows"><tr><td colspan="6" class="empty-row">Add an account to see its profit here.</td></tr></tbody>
       </table>
     </div>
@@ -53,7 +52,7 @@
   </section>
 
   <section class="accounts-section">
-    <div class="section-heading"><h2>Accounts <span id="accountCount">0</span></h2><div class="view-toggle"><button class="view active" aria-label="Grid view">▦</button><button class="view" aria-label="List view">☰</button></div></div>
+    <div class="section-heading"><h2>Accounts <span id="accountCount">0</span></h2><span class="selection-hint" id="selectionHint">Select an account to filter positions</span></div>
     <div class="table-card accounts-empty" id="accountsEmpty">
       <p>No accounts yet. Log in with your MT5 account to start monitoring.</p>
       <button class="login-button" id="emptyAdd">Log in to MT5</button>
@@ -64,10 +63,11 @@
         <tbody id="accountRows"></tbody>
       </table>
     </div>
+    <div class="account-cards" id="accountCards"></div>
   </section>
 
   <section class="positions-section">
-    <div class="section-heading"><h2>Open positions <span id="openPositionCount">0</span></h2><input class="symbol-filter" id="symbolFilter" placeholder="Filter symbol..."></div>
+    <div class="section-heading"><h2>Open positions <span id="openPositionCount">0</span></h2><div class="position-tools"><button class="clear-filter hidden" id="clearAccountFilter">Show all accounts</button><input class="symbol-filter" id="symbolFilter" placeholder="Filter symbol..."></div></div>
     <div class="table-card positions-table-wrap">
       <table class="positions-table">
         <thead><tr><th>ACCOUNT</th><th>TICKET</th><th>SYMBOL</th><th>TYPE</th><th>VOLUME</th><th>OPEN</th><th>CURRENT</th><th>S/L</th><th>T/P</th><th>SWAP</th><th>PROFIT ▾</th></tr></thead>
