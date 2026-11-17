@@ -59,8 +59,8 @@ function getPeriodDates(p){
   if(p==='last_month'){s.setUTCDate(1);s.setUTCMonth(s.getUTCMonth()-1);e=new Date(s);e.setUTCMonth(e.getUTCMonth()+1);e.setUTCDate(0)}
   return [iso(s),iso(e)];
 }
-function setPeriod(p){period=p;document.querySelectorAll('.period').forEach(b=>b.classList.toggle('active',b.dataset.period===p));[fromDate,toDate]=getPeriodDates(p);$('dateFrom').value=fromDate;$('dateTo').value=toDate;$('profitPeriodLabel').textContent='PROFIT · '+p.replace('_',' ').toUpperCase();$('profitColSelected').textContent=p.replace('_',' ').toUpperCase();render()}
-function dateChanged(){fromDate=$('dateFrom').value;toDate=$('dateTo').value;document.querySelectorAll('.period').forEach(b=>b.classList.remove('active'));$('profitPeriodLabel').textContent='PROFIT · SELECTED DATES';$('profitColSelected').textContent='SELECTED DATES';render()}
+function setPeriod(p){period=p;document.querySelectorAll('.period').forEach(b=>b.classList.toggle('active',b.dataset.period===p));[fromDate,toDate]=getPeriodDates(p);$('dateFrom').value=fromDate;$('dateTo').value=toDate;$('profitPeriodLabel').textContent='PROFIT · '+p.replace('_',' ').toUpperCase();render()}
+function dateChanged(){fromDate=$('dateFrom').value;toDate=$('dateTo').value;document.querySelectorAll('.period').forEach(b=>b.classList.remove('active'));$('profitPeriodLabel').textContent='PROFIT · SELECTED DATES';render()}
 function addCell(tr,text,cls=''){const td=document.createElement('td');td.textContent=text??'—';if(cls)td.className=cls;tr.appendChild(td);return td}
 function nameCell(tr,a){const td=document.createElement('td');const b=document.createElement('span');b.className='account-main';b.textContent=a.alias||a.login||'MT5 account';const s=document.createElement('span');s.className='account-sub';s.textContent=(a.login||'')+' · '+(a.server||'');td.append(b,s);tr.appendChild(td)}
 function render(){
