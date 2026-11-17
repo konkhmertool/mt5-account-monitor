@@ -84,7 +84,7 @@
     <p class="modal-intro">Open an account whose MetaTrader terminal is running the <strong>MT5 Monitor EA</strong>. You need its login, server and the 6-digit pairing code shown on the EA.</p>
     <form id="addAccountForm">
       <label for="accountLogin">Login (account number)</label>
-      <input id="accountLogin" placeholder="e.g. 1300098668" autocomplete="off" required>
+      <input id="accountLogin" type="text" name="mt5_account_number" inputmode="numeric" placeholder="Enter MT5 account number" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-lpignore="true" required>
       <label for="accountServer">Server</label>
       <input id="accountServer" placeholder="e.g. JustMarkets-Demo6" autocomplete="off" required>
       <label for="accountCode">Enter 6 Digit</label>
