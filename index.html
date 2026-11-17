@@ -1,51 +1,84 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0a1423"><title>Mab KaaKoo MT5 Client Monitor</title>
-<link rel="stylesheet" href="style.css"><script defer src="config.js"></script><script defer src="app.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1424">
+  <title>Mab KaaKoo | MT5 Client Monitor</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand"><div class="logo">M</div><div><b>MT5 Client Monitor</b><small>Account overview</small></div></div>
-  <div class="topright"><span id="connection" class="connection"><i></i> Connecting</span><button class="btn primary" id="openAdd">＋ Add Account</button></div>
-</header>
-<main class="wrap">
-  <section class="periodbar">
-    <div class="periods" id="periods">
-      <button class="period active" data-period="today">Today</button><button class="period" data-period="yesterday">Yesterday</button><button class="period" data-period="this_week">This week</button><button class="period" data-period="last_week">Last week</button><button class="period" data-period="this_month">This month</button><button class="period" data-period="last_month">Last month</button>
-    </div>
-    <div class="date-range"><label>From <input type="date" id="dateFrom"></label><label>To <input type="date" id="dateTo"></label></div>
-  </section>
-  <section class="summary" id="summary">
-    <article class="tile"><small>Today's Profit</small><strong id="sumToday">Waiting...</strong></article>
-    <article class="tile"><small>This Week</small><strong id="sumWeek">Waiting...</strong></article>
-    <article class="tile"><small>This Month</small><strong id="sumMonth">Waiting...</strong></article>
-    <article class="tile"><small>All-Time Closed Profit</small><strong id="sumAll">Waiting...</strong></article>
-    <article class="tile"><small>Floating P/L</small><strong id="sumFloating">—</strong></article>
-  </section>
-  <section class="table-panel">
-    <div class="table-scroll"><table><thead><tr><th>ACCOUNT</th><th>BALANCE</th><th>TODAY</th><th>THIS WEEK</th><th>THIS MONTH</th><th>ALL TIME</th><th>FLOATING</th></tr></thead><tbody id="accountsBody"><tr><td colspan="7" class="empty">No MT5 accounts added yet. Click “Add Account” to connect your first account.</td></tr></tbody><tfoot id="accountsFoot"></tfoot></table></div>
-  </section>
-  <section class="lower-summary">
-    <article class="tile"><small>Total Balance</small><strong id="totalBalance">—</strong></article>
-    <article class="tile"><small>Total Equity</small><strong id="totalEquity">—</strong></article>
-    <article class="tile"><small>Margin Used</small><strong id="totalMargin">—</strong></article>
-    <article class="tile"><small>Free Margin</small><strong id="totalFreeMargin">—</strong></article>
-    <article class="tile"><small>Open Positions</small><strong id="totalPositions">0</strong><span id="liveCount" class="muted">0 live accounts open</span></article>
-  </section>
-  <div class="footnote">MT5 Client Monitor · Data is supplied by the monitoring EA running in MetaTrader 5.</div>
-</main>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-name">MAB KAAKOO</div>
+        <div class="brand-subtitle">MT5 CLIENT MONITOR</div>
+      </div>
+      <button id="logoutBtn" class="button button-quiet hidden">Log out</button>
+    </header>
 
-<dialog id="addDialog">
- <form id="addForm" method="dialog">
-  <div class="modal-head"><div><span class="eyebrow">CONNECT META TRADER 5</span><h2>Add MT5 Account</h2><p>Enter the details shown by your Mab KaaKoo Monitor EA.</p></div><button type="button" class="xbtn" id="closeAdd" aria-label="Close">×</button></div>
-  <label for="accountNumber">MT5 Account Number</label><input id="accountNumber" name="accountNumber" inputmode="numeric" placeholder="Enter account number" required>
-  <label for="brokerServer">Broker Server Name</label><input id="brokerServer" name="brokerServer" placeholder="e.g. Exness-MT5Trial17" required>
-  <label for="pairCode">6-Digit Pairing Code</label><input id="pairCode" name="pairCode" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
-  <div id="formMessage" class="form-message"></div>
-  <div class="modal-actions"><button type="button" class="btn secondary" id="cancelAdd">Cancel</button><button type="submit" class="btn primary" id="submitAdd">Add Account</button></div>
- </form>
-</dialog>
-<div id="toast" class="toast"></div>
-</body></html>
+    <main>
+      <section id="pairSection" class="panel pair-panel">
+        <div class="section-heading">
+          <div>
+            <h1>Connect MT5 Account</h1>
+            <p>Enter the account details and the 6-digit code shown on your MT5 Monitor EA.</p>
+          </div>
+          <span class="step-tag">ACCOUNT PAIRING</span>
+        </div>
+        <form id="pairForm">
+          <label for="login">MT5 Account Number</label>
+          <input id="login" name="login" inputmode="numeric" autocomplete="off" placeholder="e.g. 1300098668" required maxlength="64">
+          <label for="server">Broker Server</label>
+          <input id="server" name="server" autocomplete="off" placeholder="e.g. JustMarkets-Demo6" required maxlength="128">
+          <label for="pairingCode">6-Digit Pairing Code</label>
+          <input id="pairingCode" name="pairingCode" inputmode="numeric" autocomplete="one-time-code" placeholder="000000" required minlength="6" maxlength="6" pattern="[0-9]{6}">
+          <button class="button button-primary" type="submit" id="pairBtn">Connect Account</button>
+          <div id="pairMessage" class="message" role="status"></div>
+        </form>
+      </section>
+
+      <section id="dashboardSection" class="hidden">
+        <div class="dashboard-heading">
+          <div>
+            <div class="eyebrow">ACCOUNT OVERVIEW</div>
+            <h1>Trading Dashboard</h1>
+            <p id="accountIdentity" class="muted">—</p>
+          </div>
+          <div class="live-indicator"><span class="live-dot"></span><span id="connectionText">Connecting</span></div>
+        </div>
+
+        <div class="metric-grid">
+          <article class="metric-card"><div class="metric-label">BALANCE</div><div id="balanceValue" class="metric-value">—</div></article>
+          <article class="metric-card"><div class="metric-label">EQUITY</div><div id="equityValue" class="metric-value">—</div></article>
+          <article class="metric-card"><div class="metric-label">FLOATING P/L</div><div id="floatingValue" class="metric-value">—</div></article>
+          <article class="metric-card"><div class="metric-label">TODAY'S CLOSED P/L</div><div id="todayValue" class="metric-value">—</div></article>
+        </div>
+
+        <div class="panel details-panel">
+          <div class="panel-title-row"><h2>Account Details</h2><span id="lastUpdated" class="muted small">Waiting for MT5 data</span></div>
+          <div class="details-grid">
+            <div><span class="detail-label">BROKER SERVER</span><strong id="brokerValue">—</strong></div>
+            <div><span class="detail-label">TRADING SYMBOL</span><strong id="symbolValue">—</strong></div>
+            <div><span class="detail-label">OPEN POSITIONS</span><strong id="positionsValue">—</strong></div>
+            <div><span class="detail-label">ACCOUNT STATUS</span><strong id="statusValue">—</strong></div>
+          </div>
+        </div>
+
+        <div class="panel positions-panel">
+          <div class="panel-title-row"><h2>Open Positions</h2><span id="positionCount" class="count-pill">0</span></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Symbol</th><th>Type</th><th>Volume</th><th>Open Price</th><th>Profit</th></tr></thead>
+              <tbody id="positionsBody"><tr><td colspan="5" class="empty">No position data received yet.</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <p class="footnote">Dashboard refreshes automatically while this page is open. Keep the MT5 Monitor EA running to receive live updates.</p>
+      </section>
+    </main>
+    <footer>© <span id="year"></span> Mab KaaKoo · MT5 Client Monitor</footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
