@@ -1,142 +1,74 @@
 'use strict';
-
-// This URL must match the deployed Cloudflare Worker.
 const API_BASE = 'https://monitor.mt5dashboard.workers.dev';
 const SESSION_KEY = 'mab_kaakoo_client_session_v1';
-
-const $ = (id) => document.getElementById(id);
-const pairSection = $('pairSection');
-const dashboardSection = $('dashboardSection');
-const pairForm = $('pairForm');
+const $ = id => document.getElementById(id);
 let sessionToken = localStorage.getItem(SESSION_KEY) || '';
-let refreshTimer = null;
+let currentAccount = null;
 
-$('year').textContent = new Date().getFullYear();
+function openModal(){ $('addModal').classList.remove('hidden'); $('accountLogin').focus(); }
+function closeModal(){ $('addModal').classList.add('hidden'); $('formMessage').textContent=''; $('addAccountForm').reset(); }
+$('openAdd').addEventListener('click',openModal);
+$('emptyAdd').addEventListener('click',openModal);
+$('closeModal').addEventListener('click',closeModal);
+$('cancelModal').addEventListener('click',closeModal);
+$('addModal').addEventListener('click',e=>{if(e.target===$('addModal'))closeModal();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+$('togglePin').addEventListener('click',()=>{const x=$('accountCode');x.type=x.type==='password'?'text':'password';});
+$('accountCode').type='password';
 
-function showMessage(message, type='') {
-  const el = $('pairMessage');
-  el.textContent = message;
-  el.className = `message ${type}`;
+function setActivePeriod(button){
+  document.querySelectorAll('.period').forEach(b=>b.classList.toggle('active',b===button));
+  $('profitPeriodLabel').textContent='PROFIT · '+button.dataset.period.toUpperCase();
 }
-function setMoney(id, value, currency) {
-  const n = Number(value || 0);
-  const el = $(id);
-  el.textContent = `${n.toFixed(2)} ${currency || ''}`.trim();
-  el.classList.toggle('positive', n > 0);
-  el.classList.toggle('negative', n < 0);
+document.querySelectorAll('.period').forEach(b=>b.addEventListener('click',()=>setActivePeriod(b)));
+
+function money(v,c=''){if(v===null||v===undefined||v==='')return '—';return Number(v).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})+(c?' '+c:'');}
+function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(options.auth)headers.Authorization='Bearer '+options.auth;return fetch(API_BASE+path,{...options,headers}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.error||'Request failed ('+r.status+')');return d;});}
+function renderAccount(a){
+  currentAccount=a;
+  $('accountsEmpty').classList.add('hidden');$('accountsTableWrap').classList.remove('hidden');
+  $('accountCount').textContent='1';$('onlineCount').textContent='1/1 accounts online';$('onlineSummary').textContent='1 account online';
+  $('accountRows').innerHTML='';
+  const tr=document.createElement('tr');
+  const accountCell=document.createElement('td');
+  accountCell.innerHTML='<span class="account-main"></span><span class="account-sub"></span>';
+  accountCell.querySelector('.account-main').textContent=a.alias;
+  accountCell.querySelector('.account-sub').textContent=`${a.login} · ${a.server}`;
+  tr.appendChild(accountCell);
+  const cells=[money(a.balance,a.currency),money(a.equity,a.currency),'—','—','—','—','—'];
+  cells.forEach((v,i)=>{const td=document.createElement('td');td.textContent=v;if(i===6)td.className='positive';tr.appendChild(td);});
+  const status=document.createElement('td');status.innerHTML='<span class="online">● Online</span>';tr.appendChild(status);
+  $('accountRows').appendChild(tr);
+  $('profitRows').innerHTML='';
+  const pr=document.createElement('tr');
+  const first=document.createElement('td');first.textContent=a.alias+' · '+a.login;pr.appendChild(first);
+  for(let i=0;i<5;i++){const td=document.createElement('td');td.textContent='—';pr.appendChild(td);}
+  $('profitRows').appendChild(pr);
+  $('totalBalance').textContent=money(a.balance,a.currency);
+  $('totalEquity').textContent=money(a.equity,a.currency);
+  $('totalFloating').textContent=money(a.floating,a.currency);
+  $('totalPositions').textContent=String(a.openPositions??0);
+  $('profitFloating').textContent=money(a.floating,a.currency);
+  $('openPositionCount').textContent=String(a.openPositions??0);
 }
-async function api(path, options={}) {
-  const headers = {'Content-Type':'application/json', ...(options.headers || {})};
-  if (options.authToken) headers.Authorization = `Bearer ${options.authToken}`;
-  const response = await fetch(`${API_BASE}${path}`, {...options, headers});
-  let data;
-  try { data = await response.json(); } catch { data = {}; }
-  if (!response.ok) throw new Error(data.error || `Request failed (${response.status})`);
-  return data;
-}
-function showDashboard() {
-  pairSection.classList.add('hidden');
-  dashboardSection.classList.remove('hidden');
-  $('logoutBtn').classList.remove('hidden');
-}
-function showPairForm(message='') {
-  if (refreshTimer) clearInterval(refreshTimer);
-  sessionToken = '';
-  localStorage.removeItem(SESSION_KEY);
-  dashboardSection.classList.add('hidden');
-  pairSection.classList.remove('hidden');
-  $('logoutBtn').classList.add('hidden');
-  if (message) showMessage(message, 'error');
-}
-function renderPositions(positions) {
-  const body = $('positionsBody');
-  $('positionCount').textContent = Array.isArray(positions) ? positions.length : '0';
-  if (!Array.isArray(positions) || positions.length === 0) {
-    body.innerHTML = '<tr><td colspan="5" class="empty">No open positions.</td></tr>';
-    return;
-  }
-  body.replaceChildren();
-  for (const p of positions) {
-    const tr = document.createElement('tr');
-    const values = [
-      p.symbol ?? p.Symbol ?? '—',
-      p.type ?? p.Type ?? p.side ?? '—',
-      p.volume ?? p.volumeLots ?? p.Volume ?? '—',
-      p.openPrice ?? p.price ?? p.PriceOpen ?? '—',
-      p.profit ?? p.Profit ?? 0
-    ];
-    values.forEach((value, i) => {
-      const td = document.createElement('td');
-      td.textContent = i === 4 ? Number(value).toFixed(2) : String(value);
-      if (i === 4) td.className = Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : '';
-      tr.appendChild(td);
-    });
-    body.appendChild(tr);
-  }
-}
-async function refreshDashboard() {
-  try {
-    const data = await api('/api/client/account', {method:'GET', authToken:sessionToken});
-    const a = data.account || {};
-    const currency = a.currency || '';
-    $('accountIdentity').textContent = `Account ${a.account_login || '—'} · ${a.broker_server || '—'}`;
-    $('brokerValue').textContent = a.broker_server || '—';
-    $('symbolValue').textContent = a.symbol || '—';
-    $('positionsValue').textContent = a.open_positions ?? 0;
-    $('statusValue').textContent = 'Connected';
-    setMoney('balanceValue', a.balance, currency);
-    setMoney('equityValue', a.equity, currency);
-    setMoney('floatingValue', a.floating_profit, currency);
-    setMoney('todayValue', a.today_closed_profit, currency);
-    const updated = a.updated_at ? new Date(a.updated_at.replace(' ', 'T') + (a.updated_at.endsWith('Z') ? '' : 'Z')) : null;
-    $('lastUpdated').textContent = updated && !Number.isNaN(updated.getTime()) ? `Last update: ${updated.toLocaleString()}` : 'Waiting for MT5 data';
-    $('connectionText').textContent = a.updated_at ? 'Live connection' : 'Waiting for MT5';
-    let positions = [];
-    try { positions = JSON.parse(a.positions_json || '[]'); } catch {}
-    renderPositions(positions);
-  } catch (err) {
-    if (/session|unauthorized/i.test(err.message)) {
-      showPairForm('Your website session expired. Please pair your account again.');
-      return;
-    }
-    $('connectionText').textContent = 'Connection problem';
-    $('statusValue').textContent = 'Unavailable';
-  }
-}
-pairForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const button = $('pairBtn');
-  button.disabled = true;
-  showMessage('Connecting to your MT5 account…');
-  const payload = {
-    login: $('login').value.trim(),
-    server: $('server').value.trim(),
-    pairingCode: $('pairingCode').value.trim(),
-    deviceId: 'browser-' + (localStorage.getItem('mab_kaakoo_device_id') || (() => {
-      const id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
-      localStorage.setItem('mab_kaakoo_device_id', id);
-      return id;
-    })())
-  };
-  try {
-    const result = await api('/api/client/pair', {method:'POST', body:JSON.stringify(payload)});
-    sessionToken = result.token;
-    localStorage.setItem(SESSION_KEY, sessionToken);
-    showDashboard();
-    await refreshDashboard();
-    if (refreshTimer) clearInterval(refreshTimer);
-    refreshTimer = setInterval(refreshDashboard, 5000);
-  } catch (err) {
-    showMessage(err.message || 'Could not connect account.', 'error');
-  } finally {
-    button.disabled = false;
-  }
+$('addAccountForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const btn=$('loginButton'),msg=$('formMessage');
+  btn.disabled=true;btn.textContent='Connecting…';msg.textContent='Checking pairing code…';msg.className='form-message';
+  const login=$('accountLogin').value.trim(),server=$('accountServer').value.trim(),code=$('accountCode').value.trim(),alias=$('accountAlias').value.trim();
+  let device=localStorage.getItem('mab_kaakoo_device_id');
+  if(!device){device=(crypto.randomUUID?crypto.randomUUID():String(Date.now()));localStorage.setItem('mab_kaakoo_device_id',device);}
+  try{
+    const result=await api('/api/client/pair',{method:'POST',body:JSON.stringify({login,server,pairingCode:code,deviceId:'browser-'+device})});
+    sessionToken=result.token;localStorage.setItem(SESSION_KEY,sessionToken);
+    let snapshot={};
+    try{const response=await api('/api/client/account',{method:'GET',auth:sessionToken});snapshot=response.account||{};}catch{}
+    renderAccount({alias,login,server,balance:snapshot.balance,equity:snapshot.equity,floating:snapshot.floating_profit,currency:snapshot.currency||'',openPositions:snapshot.open_positions||0});
+    closeModal();
+    $('systemStatus').textContent='Ready';
+  }catch(err){msg.textContent=err.message||'Unable to pair account.';}
+  finally{btn.disabled=false;btn.textContent='Login';}
 });
-$('logoutBtn').addEventListener('click', () => showPairForm('You have logged out.'));
-async function start() {
-  if (!sessionToken) return;
-  showDashboard();
-  await refreshDashboard();
-  if (sessionToken) refreshTimer = setInterval(refreshDashboard, 5000);
-}
-start();
+$('symbolFilter').addEventListener('input',()=>{});
+$('dateFrom').value=new Date().toISOString().slice(0,10);
+$('dateTo').value=new Date().toISOString().slice(0,10);
