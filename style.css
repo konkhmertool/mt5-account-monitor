@@ -47,9 +47,10 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .period:last-child{border-right:0;border-top-right-radius:9px!important;border-bottom-right-radius:9px!important}
 @media(max-width:900px){
   .period-tabs{border-radius:10px}
+  .period:first-child{border-bottom-left-radius:0px!important}
   .period:nth-child(3){border-right:0}
   .period:nth-child(n+4){border-top:1px solid var(--line)}
-  .period:last-child{border-bottom-right-radius:9px!important}
+  .period:last-child{border-bottom-right-radius:9px!important;border-top-right-radius:0px!important}
   .period:nth-child(4){border-bottom-left-radius:9px!important}
 }
 @media(max-width:560px){
