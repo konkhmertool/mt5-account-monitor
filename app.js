@@ -76,19 +76,27 @@ function money(v,c=''){
   })+(c?' '+c:'');
 }
 
-function moneyClass(v){
-  const n=Number(v);
-  if(!Number.isFinite(n)||n===0)return 'zero';
-  return n>0?'positive':'negative';
+function groupedTotals(list, field){
+  const totals=new Map();
+  for(const a of list){
+    const code=currency(a)||'Unknown';
+    const n=Number(val(a,field));
+    if(!Number.isFinite(n))continue;
+    totals.set(code,(totals.get(code)||0)+n);
+  }
+  return [...totals.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
 }
 
-function currencyTotals(field){
-  const totals=new Map();
-  for(const a of accounts){
-    const c=currency(a)||'Unknown';
-    totals.set(c,(totals.get(c)||0)+Number(val(a,field)||0));
+function renderGroupedMoney(el, list, field, {signColor=false}={}){
+  el.replaceChildren();
+  const totals=groupedTotals(list,field);
+  if(!totals.length){el.textContent='—';return;}
+  for(const [ccy,total] of totals){
+    const line=document.createElement('span');
+    line.className='currency-total'+(signColor?(total>0?' positive':total<0?' negative':' neutral'):'');
+    line.textContent=money(total,ccy==='Unknown'?'':ccy);
+    el.append(line);
   }
-  return [...totals.entries()].map(([c,n])=>`${money(n,c)}`).join(' · ')||'—';
 }
 
 function val(a,k){return a.accountData?.[k]}
@@ -186,16 +194,28 @@ function addCell(tr,text,cls=''){
   return td;
 }
 
-function nameCell(tr,a){
+function nameCell(tr,a,index,on){
   const td=document.createElement('td');
+  const wrap=document.createElement('div');
+  wrap.className='account-name-wrap';
+  const order=document.createElement('span');
+  order.className='account-order';
+  order.textContent=String(index);
+  const dot=document.createElement('span');
+  dot.className='account-status-dot '+(on?'online':'offline');
+  dot.setAttribute('aria-label',on?'Online':'Offline');
+  const text=document.createElement('div');
   const b=document.createElement('span');
   b.className='account-main';
   b.textContent=a.alias||a.login||'MT5 account';
-  const s=document.createElement('span');
-  s.className='account-sub';
-  s.textContent=(a.login||'')+' · '+(a.server||'');
-  td.append(b,s);
+  const sub=document.createElement('span');
+  sub.className='account-sub';
+  sub.textContent=(a.login||'')+' · '+(a.server||'');
+  text.append(b,sub);
+  wrap.append(order,dot,text);
+  td.append(wrap);
   tr.appendChild(td);
+  return td;
 }
 
 function render(){
@@ -203,12 +223,14 @@ function render(){
   const selected=usable.find(a=>key(a)===selectedAccountKey)||null;
 
   $('profitScope').textContent=selected?(selected.alias||selected.login):'all accounts';
+  const sumByCurrency=(field)=>groupedTotals(usable,field);
   const pos=allPositions();
   const closedAvailable=usable.some(a=>
     val(a,'today_closed_profit')!==null&&val(a,'today_closed_profit')!==undefined
   );
 
-  // Historical closed-profit data is not supplied by the current Monitor EA.
+  // Closed-trade history is not currently included in the Monitor EA payload.
+  // Keep these cards honest until the EA/Worker history-sync update is made.
   $('profitSelected').textContent='—';
   $('profitWeek').textContent='—';
   $('profitMonth').textContent='—';
@@ -217,13 +239,10 @@ function render(){
     'Historical totals require MT5 history sync':
     'Closed-trade history not yet supplied by Monitor EA';
 
-  $('profitFloating').textContent=selected?
-    money(val(selected,'floating_profit'),currency(selected)):
-    currencyTotals('floating_profit');
-  // Never add different account currencies together (for example USD + USC).
-  $('totalBalance').textContent=currencyTotals('balance');
-  $('totalEquity').textContent=currencyTotals('equity');
-  $('totalFloating').textContent=currencyTotals('floating_profit');
+  renderGroupedMoney($('profitFloating'),selected?[selected]:usable,'floating_profit',{signColor:true});
+  renderGroupedMoney($('totalBalance'),usable,'balance');
+  renderGroupedMoney($('totalEquity'),usable,'equity');
+  renderGroupedMoney($('totalFloating'),usable,'floating_profit',{signColor:true});
   $('totalMargin').textContent='—';
   $('totalFreeMargin').textContent='—';
   $('totalPositions').textContent=String(pos.length);
@@ -239,46 +258,30 @@ function render(){
   $('accountRows').replaceChildren();
   $('accountCards').replaceChildren();
   const accountTable=$('accountRows').closest('table');
-  let accountFoot=accountTable.querySelector('tfoot');
-  if(!accountFoot){
-    accountFoot=document.createElement('tfoot');
-    accountTable.appendChild(accountFoot);
+  let footer=accountTable.querySelector('tfoot#accountFooter');
+  if(!footer){
+    footer=document.createElement('tfoot');
+    footer.id='accountFooter';
+    accountTable.append(footer);
   }
-  accountFoot.replaceChildren();
+  footer.replaceChildren();
 
   if(!usable.length){
     $('accountRows').innerHTML='<tr><td colspan="9" class="empty-row">Add an account to see its information here.</td></tr>';
   }
 
-  for(const a of usable){
+  usable.forEach((a,index)=>{
     const d=accountData(a),cc=currency(a),on=isOnline(a),tr=document.createElement('tr');
 
     if(selectedAccountKey===key(a))tr.classList.add('selected');
-    const accountName=document.createElement('td');
-    const identity=document.createElement('span');
-    identity.className='account-table-identity';
-    const order=document.createElement('span');
-    order.className='account-order';
-    order.textContent=String(usable.indexOf(a)+1);
-    const dot=document.createElement('span');
-    dot.className='account-status-dot '+(on?'online-dot':'offline-dot');
-    dot.setAttribute('aria-label',on?'Online':'Offline');
-    const alias=document.createElement('span');
-    alias.className='account-main';
-    alias.textContent=a.alias||a.login||'MT5 account';
-    identity.append(order,dot,alias);
-    const sub=document.createElement('span');
-    sub.className='account-sub';
-    sub.textContent=(a.login||'')+' · '+(a.server||'');
-    accountName.append(identity,sub);
-    tr.appendChild(accountName);
-    addCell(tr,money(d.balance,cc),moneyClass(d.balance));
-    addCell(tr,money(d.equity,cc),moneyClass(d.equity));
+    nameCell(tr,a,index+1,on);
+    addCell(tr,money(d.balance,cc),Number(d.balance)>0?'positive':Number(d.balance)<0?'negative':'neutral');
+    addCell(tr,money(d.equity,cc),Number(d.equity)>0?'positive':Number(d.equity)<0?'negative':'neutral');
     addCell(tr,'—');
     addCell(tr,'—');
     addCell(tr,'—');
     addCell(tr,'—');
-    addCell(tr,money(d.floating_profit,cc),moneyClass(d.floating_profit));
+    addCell(tr,money(d.floating_profit,cc),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'neutral');
     addCell(tr,on?'● Online':'● Offline',on?'online':'offline');
     tr.addEventListener('click',()=>selectAccount(a));
     $('accountRows').appendChild(tr);
@@ -332,7 +335,7 @@ function render(){
     });
 
     const pill=document.createElement('span');
-    pill.className='status-pill '+(on?'online-pill':'offline-pill');
+    pill.className='status-pill';
     pill.textContent=on?'ONLINE':'OFFLINE';
 
     actions.append(editBtn,removeBtn,pill);
@@ -342,23 +345,23 @@ function render(){
     const metrics=document.createElement('div');
     metrics.className='account-metrics';
 
-    const metric=(label,value,rawValue=null)=>{
+    const metric=(label,value,numberValue=null)=>{
       const el=document.createElement('div');
       el.className='metric';
       const l=document.createElement('span');
       l.textContent=label;
       const b=document.createElement('b');
       b.textContent=value;
-      if(rawValue!==null)b.classList.add(moneyClass(rawValue));
+      if(numberValue!==null)b.classList.add(numberValue>0?'positive':numberValue<0?'negative':'neutral');
       el.append(l,b);
       metrics.append(el);
     };
 
-    metric('Balance',money(d.balance,cc),d.balance);
-    metric('Equity',money(d.equity,cc),d.equity);
+    metric('Balance',money(d.balance,cc),Number(d.balance)||0);
+    metric('Equity',money(d.equity,cc),Number(d.equity)||0);
     metric('Margin','—');
     metric('Free margin','—');
-    metric('Floating P/L',money(d.floating_profit,cc),d.floating_profit);
+    metric('Floating P/L',money(d.floating_profit,cc),Number(d.floating_profit)||0);
     metric('Margin level','—');
     metric('Open positions',String(d.open_positions??0));
     metric('Symbol',d.symbol||'—');
@@ -381,32 +384,38 @@ function render(){
       }
     });
     $('accountCards').append(card);
-  }
+  });
 
+  // Exactly one footer row. Currency totals are grouped in each cell, never
+  // added across USD and USC because they are different denominations.
   if(usable.length){
-    const currencies=[...new Set(usable.map(a=>currency(a)||'Unknown'))];
-    const addFootCell=(row,text,cls='')=>{
+    const ftr=document.createElement('tr');
+    ftr.className='account-total-row';
+    const label=addCell(ftr,`TOTAL · ${usable.length} ACCOUNT${usable.length===1?'':'S'}`);
+    label.className='account-total-label';
+    const appendTotals=(field)=>{
       const td=document.createElement('td');
-      td.textContent=text;
-      if(cls)td.className=cls;
-      row.appendChild(td);
+      td.className='account-total-values';
+      const values=groupedTotals(usable,field);
+      if(!values.length){td.textContent='—';}
+      for(const [ccy,total] of values){
+        const line=document.createElement('span');
+        line.className='currency-total'+(total>0?' positive':total<0?' negative':' neutral');
+        line.textContent=money(total,ccy==='Unknown'?'':ccy);
+        td.append(line);
+      }
+      ftr.append(td);
     };
-    for(const cc of currencies){
-      const group=usable.filter(a=>(currency(a)||'Unknown')===cc);
-      const total=(field)=>group.reduce((n,a)=>n+Number(val(a,field)||0),0);
-      const footRow=document.createElement('tr');
-      footRow.className='account-total-row';
-      addFootCell(footRow,`TOTAL · ${group.length} ACCOUNT${group.length===1?'':'S'} (${cc})`);
-      addFootCell(footRow,money(total('balance'),cc),moneyClass(total('balance')));
-      addFootCell(footRow,money(total('equity'),cc),moneyClass(total('equity')));
-      addFootCell(footRow,'—');
-      addFootCell(footRow,'—');
-      addFootCell(footRow,'—');
-      addFootCell(footRow,'—');
-      addFootCell(footRow,money(total('floating_profit'),cc),moneyClass(total('floating_profit')));
-      addFootCell(footRow,`${group.filter(isOnline).length}/${group.length} online`);
-      accountFoot.appendChild(footRow);
-    }
+    appendTotals('balance');
+    appendTotals('equity');
+    addCell(ftr,'—');
+    addCell(ftr,'—');
+    addCell(ftr,'—');
+    addCell(ftr,'—');
+    appendTotals('floating_profit');
+    const status=addCell(ftr,`${online}/${usable.length} ONLINE`);
+    status.className='account-total-status';
+    footer.append(ftr);
   }
 
   $('selectionHint').textContent=selected?

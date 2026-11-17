@@ -24,16 +24,38 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .profit-table th:first-child{min-width:190px}
 
 
-/* Account table totals, numbered identity and consistent P/L colors */
-.account-table-identity{display:flex;align-items:center;gap:8px;min-width:0}
-.account-order{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:5px;background:#202d3b;color:#dce7f4;font-size:10px;font-weight:800}
-.account-status-dot{display:inline-block;width:7px;height:7px;flex:0 0 7px;border-radius:50%}
-.online-dot{background:var(--green);box-shadow:0 0 5px #20d69a55}
-.offline-dot{background:var(--red);box-shadow:0 0 5px #ff526855}
-.zero{color:var(--text)!important}
-.account-total-row td{background:#202b38;border-top:1px solid #3a4b5e;font-weight:800;color:#dce7f4;padding-top:12px;padding-bottom:12px}
-.account-total-row td:first-child{color:#f1c34d}
-.account-total-row td.positive{color:var(--green)!important}
-.account-total-row td.negative{color:var(--red)!important}
-.status-pill.offline-pill{color:var(--red);background:#3a2028}
-.status-pill.online-pill{color:var(--green);background:#12352f}
+/* Account list totals and multi-currency presentation */
+.currency-total{display:block;white-space:nowrap;line-height:1.55}
+.neutral{color:var(--text)!important}
+.account-name-wrap{display:flex;align-items:center;gap:9px;min-width:0}
+.account-order{display:inline-flex;align-items:center;justify-content:center;flex:0 0 28px;height:28px;border-radius:7px;background:#243244;color:#e6edf6;font-weight:800}
+.account-status-dot{display:inline-block;flex:0 0 8px;width:8px;height:8px;border-radius:50%}
+.account-status-dot.online{background:var(--green);box-shadow:0 0 0 3px #20d69a18}
+.account-status-dot.offline{background:var(--red);box-shadow:0 0 0 3px #ff526818}
+.account-name-wrap>div{min-width:0}
+.account-total-row td{background:#202b39;border-top:2px solid #3a4a5d;font-weight:800;padding-top:14px;padding-bottom:14px}
+.account-total-row .account-total-label{color:var(--yellow);text-align:left!important}
+.account-total-row .account-total-values{color:var(--green);text-align:right}
+.account-total-row .account-total-status{color:var(--muted);font-size:10px}
+.profit-card b .currency-total,.total-card b .currency-total{font-size:inherit}
+.total-card b .currency-total{font-size:17px}
+.profit-card b .currency-total{font-size:22px}
+.period-tabs{border-radius:10px;overflow:hidden}
+.period{border-radius:0!important;min-width:0}
+.period.active{border-radius:0!important}
+.period:first-child{border-top-left-radius:9px!important;border-bottom-left-radius:9px!important}
+.period:last-child{border-right:0;border-top-right-radius:9px!important;border-bottom-right-radius:9px!important}
+@media(max-width:900px){
+  .period-tabs{border-radius:10px}
+  .period:nth-child(3){border-right:0}
+  .period:nth-child(n+4){border-top:1px solid var(--line)}
+  .period:last-child{border-bottom-right-radius:9px!important}
+  .period:nth-child(4){border-bottom-left-radius:9px!important}
+}
+@media(max-width:560px){
+  .profit-table{min-width:980px}
+  .profit-table-wrap{-webkit-overflow-scrolling:touch}
+  .account-total-row td{padding:12px 10px}
+  .total-card b .currency-total{font-size:14px}
+  .profit-card b .currency-total{font-size:18px}
+}
