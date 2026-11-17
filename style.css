@@ -22,3 +22,18 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .profit-table-wrap tbody tr:hover,.profit-table-wrap tbody tr.selected{background:#1b2938}
 .profit-table th,.profit-table td{white-space:nowrap}
 .profit-table th:first-child{min-width:190px}
+
+
+/* Account table totals, numbered identity and consistent P/L colors */
+.account-table-identity{display:flex;align-items:center;gap:8px;min-width:0}
+.account-order{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;border-radius:5px;background:#202d3b;color:#dce7f4;font-size:10px;font-weight:800}
+.account-status-dot{display:inline-block;width:7px;height:7px;flex:0 0 7px;border-radius:50%}
+.online-dot{background:var(--green);box-shadow:0 0 5px #20d69a55}
+.offline-dot{background:var(--red);box-shadow:0 0 5px #ff526855}
+.zero{color:var(--text)!important}
+.account-total-row td{background:#202b38;border-top:1px solid #3a4b5e;font-weight:800;color:#dce7f4;padding-top:12px;padding-bottom:12px}
+.account-total-row td:first-child{color:#f1c34d}
+.account-total-row td.positive{color:var(--green)!important}
+.account-total-row td.negative{color:var(--red)!important}
+.status-pill.offline-pill{color:var(--red);background:#3a2028}
+.status-pill.online-pill{color:var(--green);background:#12352f}
