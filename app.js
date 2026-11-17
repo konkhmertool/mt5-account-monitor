@@ -60,15 +60,14 @@ function render(){
  $('totalPositions').textContent=String(pos.length);$('openPositionCount').textContent=String(pos.length);
  const online=usable.filter(isOnline).length;$('onlineCount').textContent=`${online}/${usable.length} accounts online`;$('onlineSummary').textContent=usable.length?`${online} account${online===1?'':'s'} online`:'All accounts offline';
  $('accountCount').textContent=String(usable.length);
- $('accountsEmpty').classList.toggle('hidden',usable.length>0);$('accountsTableWrap').classList.toggle('hidden',usable.length===0);
- $('accountRows').replaceChildren();$('profitRows').replaceChildren();$('accountCards').replaceChildren();
- if(!usable.length){$('profitRows').innerHTML='<tr><td colspan="6" class="empty-row">Add an account to see its profit here.</td></tr>'}
+ $('accountsEmpty').classList.toggle('hidden',usable.length>0);
+ $('accountRows').replaceChildren();$('accountCards').replaceChildren();
+ if(!usable.length){$('accountRows').innerHTML='<tr><td colspan="9" class="empty-row">Add an account to see its information here.</td></tr>'}
  for(const a of usable){
   const d=accountData(a),cc=currency(a),on=isOnline(a),tr=document.createElement('tr');
   if(selectedAccountKey===key(a))tr.classList.add('selected');
   nameCell(tr,a);addCell(tr,money(d.balance,cc));addCell(tr,money(d.equity,cc));addCell(tr,'—');addCell(tr,'—');addCell(tr,'—');addCell(tr,'—');addCell(tr,money(d.floating_profit,cc),Number(d.floating_profit)<0?'negative':'positive');
   const st=addCell(tr,on?'● Online':'● Offline',on?'online':'offline');tr.addEventListener('click',()=>selectAccount(a));$('accountRows').appendChild(tr);
-  const pr=document.createElement('tr');nameCell(pr,a);for(let i=0;i<4;i++)addCell(pr,'—');addCell(pr,money(d.floating_profit,cc));$('profitRows').appendChild(pr);
   const card=document.createElement('article');card.className='account-card'+(selectedAccountKey===key(a)?' selected':'');card.tabIndex=0;
   const head=document.createElement('div');head.className='account-card-head';const title=document.createElement('div');title.innerHTML=`<div class="account-card-title"></div><div class="account-card-sub"></div>`;title.querySelector('.account-card-title').textContent=a.alias||a.login;title.querySelector('.account-card-sub').textContent=`${a.login} · ${a.server}`;const pill=document.createElement('span');pill.className='status-pill';pill.textContent=on?'ONLINE':'OFFLINE';head.append(title,pill);card.append(head);
   const metrics=document.createElement('div');metrics.className='account-metrics';
