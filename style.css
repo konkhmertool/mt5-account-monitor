@@ -6,7 +6,7 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .profit-title{display:flex;gap:9px;align-items:center;margin-bottom:10px}.profit-title span{color:var(--muted);font-size:12px}
 .filter-line{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px}.period-tabs{display:flex;overflow:hidden;border-radius:10px;background:var(--panel);border:1px solid var(--line)}.period{border:0;border-right:1px solid var(--line);background:transparent;color:#a8bdd4;padding:9px 15px;font-size:11px;cursor:pointer}.period:last-child{border-right:0}.period.active{background:var(--yellow);color:#171b20;font-weight:800;border-radius:9px}
 .date-range{display:flex;gap:14px}.date-range label{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:11px}.date-range input{background:var(--panel);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:8px 10px}
-.profit-cards{display:grid;grid-template-columns:2fr repeat(4,1fr);gap:10px;margin-bottom:10px}.profit-card,.total-card,.account-card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px;min-width:0}.profit-card{min-height:86px;display:flex;flex-direction:column;gap:9px}.profit-card.primary{border-color:#3477b8}.profit-card span,.total-card span{font-size:10px;color:#ffffff;letter-spacing:.35px}.profit-card b{font-size:22px}.profit-card small{color:var(--muted);font-size:10px}.positive{color:var(--green)!important}.negative{color:var(--red)!important}
+.profit-cards{display:grid;grid-template-columns:2fr repeat(4,1fr);gap:10px;margin-bottom:10px}.profit-card,.total-card,.account-card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:14px;min-width:0}.profit-card{min-height:86px;display:flex;flex-direction:column;gap:9px}.profit-card.primary{border-color:#3477b8}.profit-card span,.total-card span{font-size:10px;color:var(--muted);letter-spacing:.35px}.profit-card b{font-size:22px}.profit-card small{color:var(--muted);font-size:10px}.positive{color:var(--green)!important}.negative{color:var(--red)!important}
 .table-card{background:var(--panel);border:1px solid var(--line);border-radius:11px;overflow:auto}.profit-table,.accounts-table,.positions-table{width:100%;border-collapse:collapse;white-space:nowrap}.profit-table th,.accounts-table th,.positions-table th{background:var(--head);color:#91aac5;font-size:10px;font-weight:600;letter-spacing:.35px;text-align:right;padding:10px 12px}.profit-table th:first-child,.accounts-table th:first-child,.positions-table th:first-child{text-align:left}.profit-table td,.accounts-table td,.positions-table td{padding:13px 12px;border-top:1px solid var(--line);font-size:12px;text-align:right}.profit-table td:first-child,.accounts-table td:first-child,.positions-table td:first-child{text-align:left}.account-main{display:block;font-weight:700;color:#e8eff8}.account-sub{display:block;color:var(--muted);font-size:10px;margin-top:3px}.empty-row{text-align:center!important;color:var(--muted);padding:24px!important}
 .totals-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin:24px 0 28px}.total-card{min-height:84px;display:flex;flex-direction:column;gap:9px}.total-card b{font-size:17px}.total-card small{font-size:10px;color:var(--muted)}
 .section-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px}.section-heading h2{font-size:13px;margin:0}.section-heading h2 span{font-weight:500;color:var(--muted);margin-left:4px}.selection-hint{font-size:10px;color:var(--muted)}
@@ -33,7 +33,7 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .account-status-dot.online{background:var(--green);box-shadow:0 0 0 3px #20d69a18}
 .account-status-dot.offline{background:var(--red);box-shadow:0 0 0 3px #ff526818}
 .account-name-wrap>div{min-width:0}
-.account-total-row td{background:#202b39;border-top:2px solid #3a4a5d;font-weight:500;padding-top:14px;padding-bottom:14px;font-size:16px;}
+.account-total-row td{background:#202b39;border-top:2px solid #3a4a5d;font-weight:800;padding-top:14px;padding-bottom:14px}
 .account-total-row .account-total-label{color:var(--yellow);text-align:left!important}
 .account-total-row .account-total-values{color:var(--green);text-align:right}
 .account-total-row .account-total-status{color:var(--muted);font-size:10px}
@@ -47,10 +47,9 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .period:last-child{border-right:0;border-top-right-radius:9px!important;border-bottom-right-radius:9px!important}
 @media(max-width:900px){
   .period-tabs{border-radius:10px}
-  .period:first-child{border-bottom-left-radius:0px!important}
   .period:nth-child(3){border-right:0}
   .period:nth-child(n+4){border-top:1px solid var(--line)}
-  .period:last-child{border-bottom-right-radius:9px!important;border-top-right-radius:0px!important}
+  .period:last-child{border-bottom-right-radius:9px!important}
   .period:nth-child(4){border-bottom-left-radius:9px!important}
 }
 @media(max-width:560px){
@@ -59,4 +58,10 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
   .account-total-row td{padding:12px 10px}
   .total-card b .currency-total{font-size:14px}
   .profit-card b .currency-total{font-size:18px}
+}
+
+/* Profit and account summary card titles */
+.profit-card > span,
+.total-card > span {
+  color: #969696;
 }

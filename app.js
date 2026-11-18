@@ -68,6 +68,12 @@ function save(){
 function key(a){return a.login+'|'+a.server}
 function currency(a){return a.accountData?.currency||''}
 
+function profitMoney(v,c=''){
+  if(v===null||v===undefined||v===''||!Number.isFinite(Number(v)))return '—';
+  const n=Number(v);
+  return (n>0?'+':'')+money(n,c);
+}
+
 function money(v,c=''){
   if(v===null||v===undefined||v===''||!Number.isFinite(Number(v)))return '—';
   return Number(v).toLocaleString(undefined,{
@@ -94,7 +100,7 @@ function renderGroupedMoney(el, list, field, {signColor=false}={}){
   for(const [ccy,total] of totals){
     const line=document.createElement('span');
     line.className='currency-total'+(signColor?(total>0?' positive':total<0?' negative':' neutral'):'');
-    line.textContent=money(total,ccy==='Unknown'?'':ccy);
+    line.textContent=signColor?profitMoney(total,ccy==='Unknown'?'':ccy):money(total,ccy==='Unknown'?'':ccy);
     el.append(line);
   }
 }
@@ -102,7 +108,7 @@ function renderGroupedMoney(el, list, field, {signColor=false}={}){
 function val(a,k){return a.accountData?.[k]}
 function closedProfit(a){const raw=val(a,'closed_profit_json');if(raw&&typeof raw==='object')return raw;try{return JSON.parse(raw||'{}')}catch{return {}}}
 function profitFor(a,k){const h=closedProfit(a);if(k==='custom')return h.customFrom===fromDate&&h.customTo===toDate?Number(h.custom):NaN;return h[k]===undefined?NaN:Number(h[k])}
-function renderProfitValues(el,list,getter){el.replaceChildren();const totals=new Map();for(const a of list){const c=currency(a)||'Unknown',n=Number(getter(a));if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size){el.textContent='—';return}for(const [c,n] of [...totals.entries()].sort((a,b)=>a[0].localeCompare(b[0]))){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=money(n,c==='Unknown'?'':c);el.append(span)}}
+function renderProfitValues(el,list,getter){el.replaceChildren();const totals=new Map();for(const a of list){const c=currency(a)||'Unknown',n=Number(getter(a));if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size){el.textContent='—';return}for(const [c,n] of [...totals.entries()].sort((a,b)=>a[0].localeCompare(b[0]))){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=profitMoney(n,c==='Unknown'?'':c);el.append(span)}}
 
 function parseServerTime(value){
   if(!value)return NaN;
@@ -319,9 +325,9 @@ function render(){
     if(selectedAccountKey===key(a))tr.classList.add('selected');
     nameCell(tr,a,index+1,on);
     const selectedProfit=profitFor(a,selectedHistoryKey);
-    addCell(tr,Number.isFinite(selectedProfit)?money(selectedProfit,cc):'—',selectedProfit>0?'positive':selectedProfit<0?'negative':'neutral');
-    for(const k of ['thisWeek','thisMonth','allTime']){const n=profitFor(a,k);addCell(tr,money(n,cc),n>0?'positive':n<0?'negative':'neutral');}
-    addCell(tr,money(d.floating_profit,cc),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'neutral');
+    addCell(tr,Number.isFinite(selectedProfit)?profitMoney(selectedProfit,cc):'—',selectedProfit>0?'positive':selectedProfit<0?'negative':'neutral');
+    for(const k of ['thisWeek','thisMonth','allTime']){const n=profitFor(a,k);addCell(tr,profitMoney(n,cc),n>0?'positive':n<0?'negative':'neutral');}
+    addCell(tr,profitMoney(d.floating_profit,cc),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'neutral');
     tr.addEventListener('click',()=>selectAccount(a));
     $('accountRows').appendChild(tr);
 
@@ -400,7 +406,7 @@ function render(){
     metric('Equity',money(d.equity,cc),Number(d.equity)||0);
     metric('Margin','—');
     metric('Free margin','—');
-    metric('Floating P/L',money(d.floating_profit,cc),Number(d.floating_profit)||0);
+    metric('Floating P/L',profitMoney(d.floating_profit,cc),Number(d.floating_profit)||0);
     metric('Margin level','—');
     metric('Open positions',String(d.open_positions??0));
     metric('Symbol',d.symbol||'—');
@@ -440,12 +446,12 @@ function render(){
       for(const [ccy,total] of values){
         const line=document.createElement('span');
         line.className='currency-total'+(total>0?' positive':total<0?' negative':' neutral');
-        line.textContent=money(total,ccy==='Unknown'?'':ccy);
+        line.textContent=profitMoney(total,ccy==='Unknown'?'':ccy);
         td.append(line);
       }
       ftr.append(td);
     };
-    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of totals){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=money(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
+    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of totals){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=profitMoney(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
     appendProfitTotals(selectedHistoryKey);
     ['thisWeek','thisMonth','allTime'].forEach(appendProfitTotals);
     appendTotals('floating_profit');
