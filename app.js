@@ -497,6 +497,49 @@ function render(){
     addCell(tr,money(p.profit,currency(a)),Number(p.profit)<0?'negative':'positive');
     $('positionRows').append(tr);
   }
+
+  // Footer totals follow the currently visible positions (account and symbol filters).
+  const positionTable=$('positionRows').closest('table');
+  let positionFooter=positionTable.querySelector('tfoot#positionFooter');
+  if(!positionFooter){
+    positionFooter=document.createElement('tfoot');
+    positionFooter.id='positionFooter';
+    positionTable.append(positionFooter);
+  }
+  positionFooter.replaceChildren();
+  if(filtered.length){
+    const totalsRow=document.createElement('tr');
+    totalsRow.className='positions-total-row';
+    const label=addCell(totalsRow,`TOTAL · ${filtered.length} POSITION${filtered.length===1?'':'S'}`);
+    label.className='positions-total-label';
+    // Ticket, symbol and type have no meaningful aggregate.
+    for(let i=0;i<3;i++)addCell(totalsRow,'');
+    const totalVolume=filtered.reduce((sum,p)=>sum+(Number(p.volume)||0),0);
+    const volumeCell=addCell(totalsRow,totalVolume.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}));
+    volumeCell.className='positions-total-values';
+    for(let i=0;i<4;i++)addCell(totalsRow,'');
+    const appendPositionCurrencyTotal=(field)=>{
+      const td=document.createElement('td');
+      td.className='positions-total-values';
+      const totals=new Map();
+      for(const p of filtered){
+        const c=currency(p._account)||'Unknown';
+        const n=Number(p[field]);
+        if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n);
+      }
+      if(!totals.size)td.textContent='—';
+      for(const [ccy,total] of sortCurrencyTotals(totals.entries())){
+        const line=document.createElement('span');
+        line.className='currency-total'+(total>0?' positive':total<0?' negative':' neutral');
+        line.textContent=profitMoney(total,ccy==='Unknown'?'':ccy);
+        td.append(line);
+      }
+      totalsRow.append(td);
+    };
+    appendPositionCurrencyTotal('swap');
+    appendPositionCurrencyTotal('profit');
+    positionFooter.append(totalsRow);
+  }
 }
 
 function selectAccount(a){
