@@ -68,6 +68,15 @@ function save(){
 function key(a){return a.login+'|'+a.server}
 function currency(a){return a.accountData?.currency||''}
 
+// Keep Cent currency above standard USD wherever currencies are grouped.
+function sortCurrencyTotals(entries){
+  const priority={USC:0,USD:1};
+  return [...entries].sort((a,b)=>{
+    const pa=priority[a[0]]??2, pb=priority[b[0]]??2;
+    return pa-pb || a[0].localeCompare(b[0]);
+  });
+}
+
 function profitMoney(v,c=''){
   if(v===null||v===undefined||v===''||!Number.isFinite(Number(v)))return '—';
   const n=Number(v);
@@ -90,7 +99,7 @@ function groupedTotals(list, field){
     if(!Number.isFinite(n))continue;
     totals.set(code,(totals.get(code)||0)+n);
   }
-  return [...totals.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  return sortCurrencyTotals(totals.entries());
 }
 
 function renderGroupedMoney(el, list, field, {signColor=false}={}){
@@ -108,7 +117,7 @@ function renderGroupedMoney(el, list, field, {signColor=false}={}){
 function val(a,k){return a.accountData?.[k]}
 function closedProfit(a){const raw=val(a,'closed_profit_json');if(raw&&typeof raw==='object')return raw;try{return JSON.parse(raw||'{}')}catch{return {}}}
 function profitFor(a,k){const h=closedProfit(a);if(k==='custom')return h.customFrom===fromDate&&h.customTo===toDate?Number(h.custom):NaN;return h[k]===undefined?NaN:Number(h[k])}
-function renderProfitValues(el,list,getter){el.replaceChildren();const totals=new Map();for(const a of list){const c=currency(a)||'Unknown',n=Number(getter(a));if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size){el.textContent='—';return}for(const [c,n] of [...totals.entries()].sort((a,b)=>a[0].localeCompare(b[0]))){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=profitMoney(n,c==='Unknown'?'':c);el.append(span)}}
+function renderProfitValues(el,list,getter){el.replaceChildren();const totals=new Map();for(const a of list){const c=currency(a)||'Unknown',n=Number(getter(a));if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size){el.textContent='—';return}for(const [c,n] of sortCurrencyTotals(totals.entries())){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=profitMoney(n,c==='Unknown'?'':c);el.append(span)}}
 
 function parseServerTime(value){
   if(!value)return NaN;
@@ -451,7 +460,7 @@ function render(){
       }
       ftr.append(td);
     };
-    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of totals){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=profitMoney(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
+    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of sortCurrencyTotals(totals.entries())){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=profitMoney(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
     appendProfitTotals(selectedHistoryKey);
     ['thisWeek','thisMonth','allTime'].forEach(appendProfitTotals);
     appendTotals('floating_profit');
