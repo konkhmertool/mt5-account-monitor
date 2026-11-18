@@ -126,3 +126,48 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
   .total-card b .currency-total{font-size:14px;font-weight:500}
   .profit-card b .currency-total{font-size:16px;font-weight:500}
 }
+
+
+/* Mobile horizontal scroll: keep the Account column visible in both tables. */
+@media (max-width: 900px) {
+  .profit-table-wrap,
+  .positions-section .table-card {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .profit-table th:first-child,
+  .profit-table td:first-child,
+  .positions-table th:first-child,
+  .positions-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--panel);
+    background-clip: padding-box;
+    box-shadow: 1px 0 0 var(--line);
+  }
+
+  .profit-table thead th:first-child,
+  .positions-table thead th:first-child {
+    z-index: 4;
+    background: var(--head);
+  }
+
+  .profit-table tbody tr:hover td:first-child,
+  .profit-table tbody tr.selected td:first-child,
+  .positions-table tbody tr:hover td:first-child,
+  .positions-table tbody tr.selected td:first-child {
+    background: #1b2938;
+  }
+
+  .profit-table tbody tr.account-total-row td:first-child,
+  .positions-table tbody tr.positions-total-row td:first-child {
+    background: #202b39;
+  }
+
+  .positions-table th:first-child,
+  .positions-table td:first-child {
+    min-width: 160px;
+  }
+}
