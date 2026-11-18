@@ -188,22 +188,25 @@ function selectedProfitKey(){
 }
 
 function selectedPeriodColumnLabel(){
-  const labels={
-    today:'Today',
-    yesterday:'Yesterday',
-    this_week:'This Week',
-    last_week:'Last Week',
-    this_month:'This Month',
-    last_month:'Last Month'
-  };
+  const labels={today:'Today',yesterday:'Yesterday',this_week:'This Week',last_week:'Last Week',this_month:'This Month',last_month:'Last Month'};
   if(period!=='custom')return labels[period]||'Today';
-  const fmt=ymd=>{
-    const d=new Date(ymd+'T00:00:00Z');
-    return new Intl.DateTimeFormat('en-US',{
-      timeZone:'UTC',month:'short',day:'numeric',year:'numeric'
-    }).format(d);
-  };
+  const fmt=ymd=>new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(new Date(ymd+'T00:00:00Z'));
   return fromDate===toDate?fmt(fromDate):`${fmt(fromDate)} – ${fmt(toDate)}`;
+}
+
+let quickPeriodRefreshTimer=null;
+async function refreshAfterPeriodChange(){
+  await requestLiveSnapshots();
+  if(quickPeriodRefreshTimer)clearInterval(quickPeriodRefreshTimer);
+  let attempts=0;
+  quickPeriodRefreshTimer=setInterval(async()=>{
+    if(document.visibilityState!=='visible'){
+      clearInterval(quickPeriodRefreshTimer);quickPeriodRefreshTimer=null;return;
+    }
+    await refreshVisibleAccounts();
+    attempts++;
+    if(attempts>=8){clearInterval(quickPeriodRefreshTimer);quickPeriodRefreshTimer=null;}
+  },1000);
 }
 
 function setPeriod(p){
@@ -216,22 +219,7 @@ function setPeriod(p){
   $('dateTo').value=toDate;
   $('profitPeriodLabel').textContent='PROFIT · '+p.replace('_',' ').toUpperCase();
   render();
-  requestLiveSnapshots();
-}
-
-let quickRefreshTimer=null;
-async function refreshAfterPeriodChange(){
-  await requestLiveSnapshots();
-  if(quickRefreshTimer)clearInterval(quickRefreshTimer);
-  let attempts=0;
-  quickRefreshTimer=setInterval(async()=>{
-    if(document.visibilityState!=='visible'){
-      clearInterval(quickRefreshTimer);quickRefreshTimer=null;return;
-    }
-    await refreshVisibleAccounts();
-    attempts++;
-    if(attempts>=8){clearInterval(quickRefreshTimer);quickRefreshTimer=null;}
-  },1000);
+  refreshAfterPeriodChange();
 }
 
 function dateChanged(){
@@ -309,23 +297,9 @@ function render(){
   $('accountRows').replaceChildren();
   $('accountCards').replaceChildren();
   const accountTable=$('accountRows').closest('table');
-  const headerRow=accountTable.querySelector('thead tr');
-  if(headerRow){
-    const oldHeaders=[...headerRow.children];
-    if(oldHeaders.length>=6){
-      const accountHeader=oldHeaders[0];
-      const profitHeader=oldHeaders[1];
-      const floatingHeader=oldHeaders[oldHeaders.length-1];
-      oldHeaders.slice(1,-1).forEach((cell,index)=>{if(index>0)cell.remove();});
-      profitHeader.textContent=selectedPeriodColumnLabel();
-      floatingHeader.textContent='Floating';
-      // Keep the original header styling and order: Account | selected period | Floating.
-      if(profitHeader.nextElementSibling!==floatingHeader)
-        profitHeader.after(floatingHeader);
-    }else if(oldHeaders.length===3){
-      oldHeaders[1].textContent=selectedPeriodColumnLabel();
-      oldHeaders[2].textContent='Floating';
-    }
+  const accountHeaderRow=accountTable.querySelector('thead tr');
+  if(accountHeaderRow && accountHeaderRow.children.length>=6){
+    accountHeaderRow.children[1].textContent=selectedPeriodColumnLabel();
   }
   let footer=accountTable.querySelector('tfoot#accountFooter');
   if(!footer){
@@ -336,7 +310,7 @@ function render(){
   footer.replaceChildren();
 
   if(!usable.length){
-    $('accountRows').innerHTML='<tr><td colspan="3" class="empty-row">Add an account to see its information here.</td></tr>';
+    $('accountRows').innerHTML='<tr><td colspan="6" class="empty-row">Add an account to see its information here.</td></tr>';
   }
 
   usable.forEach((a,index)=>{
@@ -344,7 +318,9 @@ function render(){
 
     if(selectedAccountKey===key(a))tr.classList.add('selected');
     nameCell(tr,a,index+1,on);
-    const selectedProfit=profitFor(a,selectedHistoryKey);addCell(tr,Number.isFinite(selectedProfit)?money(selectedProfit,cc):'—',selectedProfit>0?'positive':selectedProfit<0?'negative':'neutral');
+    const selectedProfit=profitFor(a,selectedHistoryKey);
+    addCell(tr,Number.isFinite(selectedProfit)?money(selectedProfit,cc):'—',selectedProfit>0?'positive':selectedProfit<0?'negative':'neutral');
+    for(const k of ['thisWeek','thisMonth','allTime']){const n=profitFor(a,k);addCell(tr,money(n,cc),n>0?'positive':n<0?'negative':'neutral');}
     addCell(tr,money(d.floating_profit,cc),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'neutral');
     tr.addEventListener('click',()=>selectAccount(a));
     $('accountRows').appendChild(tr);
@@ -469,8 +445,9 @@ function render(){
       }
       ftr.append(td);
     };
-    const appendSelectedProfitTotals=()=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,selectedHistoryKey);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of totals){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=money(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
-    appendSelectedProfitTotals();
+    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of totals){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=money(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
+    appendProfitTotals(selectedHistoryKey);
+    ['thisWeek','thisMonth','allTime'].forEach(appendProfitTotals);
     appendTotals('floating_profit');
     footer.append(ftr);
   }
