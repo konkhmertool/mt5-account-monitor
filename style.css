@@ -1,4 +1,4 @@
-*{box-sizing:border-box} :root{color-scheme:dark;--bg:#0c1118;--panel:#151c25;--head:#1d2733;--line:#263342;--muted:#87a0bb;--text:#e6edf6;--yellow:#f5bf43;--green:#20d69a;--red:#ff5268;--blue:#4e9bff}
+*{box-sizing:border-box} :root{color-scheme:dark;--bg:#0c1118;--panel:#151c25;--head:#1d2733;--line:#263342;--muted:#87a0bb;--text:#e6edf6;--yellow:#f5bf43;--green:#20d69a;--red:#ff5268;--blue:#4e9bff;--mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
 button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line);background:#151c25;display:flex;align-items:center;justify-content:space-between;padding:0 14px;position:sticky;top:0;z-index:5}
 .top-left,.top-center,.top-right{display:flex;align-items:center;gap:10px}.top-left strong{font-size:14px}.mt5-badge{background:var(--yellow);color:#10151c;border-radius:5px;padding:3px 7px;font-size:10px;font-weight:900}.top-center{font-size:11px;color:var(--muted)}.status-dot{width:7px;height:7px;background:var(--green);border-radius:50%}.top-right{font-size:11px;color:var(--muted)}
@@ -74,5 +74,18 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .profit-table tbody tr.account-total-row td:not(:first-child) {
   font-size: 16px;
   font-weight: 600;
+}
+
+/* Monospaced, tabular figures for monetary, profit and price values */
+.profit-card b,
+.total-card b,
+.profit-table td:not(:first-child),
+.account-metrics .metric b,
+.positions-table td.numeric,
+.positions-table td.price,
+.positions-table td.profit,
+.positions-table td.change {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }
 
