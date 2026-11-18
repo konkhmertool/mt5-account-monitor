@@ -83,6 +83,23 @@ function profitMoney(v,c=''){
   return (n>0?'+':'')+money(n,c);
 }
 
+// In the account profit table, keep the numeric amount sign-colored while
+// rendering only the currency code in the muted header blue.
+function appendAccountTableMoney(el,value,ccy=''){
+  const n=Number(value);
+  if(!Number.isFinite(n)){el.textContent='—';return;}
+  const amount=document.createElement('span');
+  amount.className=n>0?'positive':n<0?'negative':'neutral';
+  amount.textContent=(n>0?'+':'')+money(n,'');
+  el.append(amount);
+  if(ccy){
+    const code=document.createElement('span');
+    code.className='account-currency-code';
+    code.textContent=' '+ccy;
+    el.append(code);
+  }
+}
+
 function money(v,c=''){
   if(v===null||v===undefined||v===''||!Number.isFinite(Number(v)))return '—';
   return Number(v).toLocaleString(undefined,{
@@ -203,7 +220,7 @@ function selectedProfitKey(){
 }
 
 function selectedPeriodColumnLabel(){
-  const labels={today:'Today',yesterday:'Yesterday',this_week:'This Week',last_week:'Last Week',this_month:'This Month',last_month:'Last Month'};
+  const labels={today:'TODAY',yesterday:'YESTERDAY',this_week:'THIS WEEK',last_week:'LAST WEEK',this_month:'THIS MONTH',last_month:'LAST MONTH'};
   if(period!=='custom')return labels[period]||'Today';
   const fmt=ymd=>new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(new Date(ymd+'T00:00:00Z'));
   return fromDate===toDate?fmt(fromDate):`${fmt(fromDate)} – ${fmt(toDate)}`;
@@ -334,9 +351,10 @@ function render(){
     if(selectedAccountKey===key(a))tr.classList.add('selected');
     nameCell(tr,a,index+1,on);
     const selectedProfit=profitFor(a,selectedHistoryKey);
-    addCell(tr,Number.isFinite(selectedProfit)?profitMoney(selectedProfit,cc):'—',selectedProfit>0?'positive':selectedProfit<0?'negative':'neutral');
-    for(const k of ['thisWeek','thisMonth','allTime']){const n=profitFor(a,k);addCell(tr,profitMoney(n,cc),n>0?'positive':n<0?'negative':'neutral');}
-    addCell(tr,profitMoney(d.floating_profit,cc),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'neutral');
+    const addAccountProfitCell=(value)=>{const td=document.createElement('td');appendAccountTableMoney(td,value,cc);tr.append(td);};
+    addAccountProfitCell(selectedProfit);
+    for(const k of ['thisWeek','thisMonth','allTime'])addAccountProfitCell(profitFor(a,k));
+    addAccountProfitCell(d.floating_profit);
     tr.addEventListener('click',()=>selectAccount(a));
     $('accountRows').appendChild(tr);
 
@@ -455,12 +473,12 @@ function render(){
       for(const [ccy,total] of values){
         const line=document.createElement('span');
         line.className='currency-total'+(total>0?' positive':total<0?' negative':' neutral');
-        line.textContent=profitMoney(total,ccy==='Unknown'?'':ccy);
+        appendAccountTableMoney(line,total,ccy==='Unknown'?'':ccy);
         td.append(line);
       }
       ftr.append(td);
     };
-    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of sortCurrencyTotals(totals.entries())){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=profitMoney(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
+    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of sortCurrencyTotals(totals.entries())){const span=document.createElement('span');span.className='currency-total';appendAccountTableMoney(span,n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
     appendProfitTotals(selectedHistoryKey);
     ['thisWeek','thisMonth','allTime'].forEach(appendProfitTotals);
     appendTotals('floating_profit');

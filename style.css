@@ -114,3 +114,7 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
   white-space: nowrap;
   line-height: 1.55;
 }
+
+
+/* Account table currency labels use muted blue; amount keeps its profit color. */
+.profit-table .account-currency-code { color: #91aac5 !important; }
