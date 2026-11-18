@@ -65,3 +65,14 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .total-card > span {
   color: #969696;
 }
+
+/* Account profit table: improve readability of account values and totals only */
+.profit-table tbody tr:not(.account-total-row) td:not(:first-child) {
+  font-size: 14px;
+}
+
+.profit-table tbody tr.account-total-row td:not(:first-child) {
+  font-size: 16px;
+  font-weight: 600;
+}
+
