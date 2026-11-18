@@ -179,6 +179,33 @@ function getPeriodDates(p){
   return [iso(s),iso(e)];
 }
 
+function selectedProfitKey(){
+  return period==='custom'?'custom':
+    period==='this_week'?'thisWeek':
+    period==='last_week'?'lastWeek':
+    period==='this_month'?'thisMonth':
+    period==='last_month'?'lastMonth':period;
+}
+
+function selectedPeriodColumnLabel(){
+  const labels={
+    today:'Today',
+    yesterday:'Yesterday',
+    this_week:'This Week',
+    last_week:'Last Week',
+    this_month:'This Month',
+    last_month:'Last Month'
+  };
+  if(period!=='custom')return labels[period]||'Today';
+  const fmt=ymd=>{
+    const d=new Date(ymd+'T00:00:00Z');
+    return new Intl.DateTimeFormat('en-US',{
+      timeZone:'UTC',month:'short',day:'numeric',year:'numeric'
+    }).format(d);
+  };
+  return fromDate===toDate?fmt(fromDate):`${fmt(fromDate)} – ${fmt(toDate)}`;
+}
+
 function setPeriod(p){
   period=p;
   document.querySelectorAll('.period').forEach(b=>
@@ -192,6 +219,21 @@ function setPeriod(p){
   requestLiveSnapshots();
 }
 
+let quickRefreshTimer=null;
+async function refreshAfterPeriodChange(){
+  await requestLiveSnapshots();
+  if(quickRefreshTimer)clearInterval(quickRefreshTimer);
+  let attempts=0;
+  quickRefreshTimer=setInterval(async()=>{
+    if(document.visibilityState!=='visible'){
+      clearInterval(quickRefreshTimer);quickRefreshTimer=null;return;
+    }
+    await refreshVisibleAccounts();
+    attempts++;
+    if(attempts>=8){clearInterval(quickRefreshTimer);quickRefreshTimer=null;}
+  },1000);
+}
+
 function dateChanged(){
   fromDate=$('dateFrom').value;
   toDate=$('dateTo').value;
@@ -199,7 +241,7 @@ function dateChanged(){
   period='custom';
   $('profitPeriodLabel').textContent='PROFIT · SELECTED DATES';
   render();
-  requestLiveSnapshots();
+  refreshAfterPeriodChange();
 }
 
 function addCell(tr,text,cls=''){
@@ -241,7 +283,7 @@ function render(){
   $('profitScope').textContent=selected?(selected.alias||selected.login):'all accounts';
   const sumByCurrency=(field)=>groupedTotals(usable,field);
   const pos=allPositions();
-  const selectedHistoryKey=period==='custom'?'custom':period==='this_week'?'thisWeek':period==='last_week'?'lastWeek':period==='this_month'?'thisMonth':period==='last_month'?'lastMonth':period;
+  const selectedHistoryKey=selectedProfitKey();
   renderProfitValues($('profitSelected'),selected?[selected]:usable,a=>profitFor(a,selectedHistoryKey));
   renderProfitValues($('profitWeek'),selected?[selected]:usable,a=>profitFor(a,'thisWeek'));
   renderProfitValues($('profitMonth'),selected?[selected]:usable,a=>profitFor(a,'thisMonth'));
@@ -267,6 +309,24 @@ function render(){
   $('accountRows').replaceChildren();
   $('accountCards').replaceChildren();
   const accountTable=$('accountRows').closest('table');
+  const headerRow=accountTable.querySelector('thead tr');
+  if(headerRow){
+    const oldHeaders=[...headerRow.children];
+    if(oldHeaders.length>=6){
+      const accountHeader=oldHeaders[0];
+      const profitHeader=oldHeaders[1];
+      const floatingHeader=oldHeaders[oldHeaders.length-1];
+      oldHeaders.slice(1,-1).forEach((cell,index)=>{if(index>0)cell.remove();});
+      profitHeader.textContent=selectedPeriodColumnLabel();
+      floatingHeader.textContent='Floating';
+      // Keep the original header styling and order: Account | selected period | Floating.
+      if(profitHeader.nextElementSibling!==floatingHeader)
+        profitHeader.after(floatingHeader);
+    }else if(oldHeaders.length===3){
+      oldHeaders[1].textContent=selectedPeriodColumnLabel();
+      oldHeaders[2].textContent='Floating';
+    }
+  }
   let footer=accountTable.querySelector('tfoot#accountFooter');
   if(!footer){
     footer=document.createElement('tfoot');
@@ -276,7 +336,7 @@ function render(){
   footer.replaceChildren();
 
   if(!usable.length){
-    $('accountRows').innerHTML='<tr><td colspan="6" class="empty-row">Add an account to see its information here.</td></tr>';
+    $('accountRows').innerHTML='<tr><td colspan="3" class="empty-row">Add an account to see its information here.</td></tr>';
   }
 
   usable.forEach((a,index)=>{
@@ -284,7 +344,7 @@ function render(){
 
     if(selectedAccountKey===key(a))tr.classList.add('selected');
     nameCell(tr,a,index+1,on);
-    for(const k of ['today','thisWeek','thisMonth','allTime']){const n=profitFor(a,k);addCell(tr,money(n,cc),n>0?'positive':n<0?'negative':'neutral');}
+    const selectedProfit=profitFor(a,selectedHistoryKey);addCell(tr,Number.isFinite(selectedProfit)?money(selectedProfit,cc):'—',selectedProfit>0?'positive':selectedProfit<0?'negative':'neutral');
     addCell(tr,money(d.floating_profit,cc),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'neutral');
     tr.addEventListener('click',()=>selectAccount(a));
     $('accountRows').appendChild(tr);
@@ -409,8 +469,8 @@ function render(){
       }
       ftr.append(td);
     };
-    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of totals){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=money(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
-    ['today','thisWeek','thisMonth','allTime'].forEach(appendProfitTotals);
+    const appendSelectedProfitTotals=()=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,selectedHistoryKey);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of totals){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=money(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
+    appendSelectedProfitTotals();
     appendTotals('floating_profit');
     footer.append(ftr);
   }
