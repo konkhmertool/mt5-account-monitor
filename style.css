@@ -127,8 +127,89 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
   .profit-card b .currency-total{font-size:16px;font-weight:500}
 }
 
+/* Mobile compact frozen Account columns: preserve all existing desktop styling. */
+@media (max-width: 560px) {
+  /* Account profit table: compact sticky first column. */
+  .profit-table th:first-child,
+  .profit-table td:first-child {
+    width: 155px;
+    min-width: 155px;
+    max-width: 155px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 
-/* Mobile horizontal scroll: keep the Account column visible in both tables. */
+  .profit-table .account-name-wrap {
+    gap: 5px;
+    align-items: flex-start;
+  }
+
+  /* Simple sequence number instead of a filled square. */
+  .profit-table .account-order {
+    flex: 0 0 12px;
+    width: 12px;
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    margin-top: 1px;
+    border-radius: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  .profit-table .account-status-dot {
+    flex: 0 0 7px;
+    width: 7px;
+    height: 7px;
+    margin-top: 5px;
+  }
+
+  .profit-table .account-main,
+  .profit-table .account-sub {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .profit-table .account-sub {
+    line-height: 1.35;
+  }
+
+  /* Add a compact ID prefix before the account number shown in account-sub. */
+  .profit-table .account-sub::before {
+    content: "ID #";
+    color: var(--muted);
+    font-size: 9px;
+  }
+
+  /* Keep the account total footer aligned with the compact frozen column. */
+  .profit-table .account-total-row td:first-child {
+    width: 155px;
+    min-width: 155px;
+    max-width: 155px;
+  }
+
+  /* Open positions: compact sticky Account column and allow account names to wrap. */
+  .positions-table th:first-child,
+  .positions-table td:first-child {
+    width: 125px;
+    min-width: 125px;
+    max-width: 125px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .positions-table .positions-total-row td:first-child {
+    width: 125px;
+    min-width: 125px;
+    max-width: 125px;
+  }
+}
+
+/* Mobile horizontal scrolling: freeze first Account column in both tables. */
 @media (max-width: 900px) {
   .profit-table-wrap,
   .positions-section .table-card {
@@ -164,10 +245,5 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
   .profit-table tbody tr.account-total-row td:first-child,
   .positions-table tbody tr.positions-total-row td:first-child {
     background: #202b39;
-  }
-
-  .positions-table th:first-child,
-  .positions-table td:first-child {
-    min-width: 160px;
   }
 }
