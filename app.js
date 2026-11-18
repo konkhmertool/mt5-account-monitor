@@ -507,7 +507,10 @@ function render(){
     addCell(tr,p.symbol);
     addCell(tr,p.type,p.type==='BUY'?'type-buy':'type-sell');
     addCell(tr,p.volume);
-    addCell(tr,p.open_price??'—');
+    // Entry price is supplied by the Monitor EA from MT5 POSITION_PRICE_OPEN.
+    // Accept the canonical field plus common legacy aliases.
+    const entryPrice=p.open_price??p.price_open??p.openPrice??'—';
+    addCell(tr,entryPrice);
     addCell(tr,p.current_price??'—');
     addCell(tr,p.sl??'—');
     addCell(tr,p.tp??'—');
