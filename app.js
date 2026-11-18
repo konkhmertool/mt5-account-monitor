@@ -95,7 +95,7 @@ function appendAccountTableMoney(el,value,ccy=''){
   if(ccy){
     const code=document.createElement('span');
     code.className='account-currency-code';
-    code.textContent=' '+ccy;
+    code.textContent=ccy;
     el.append(code);
   }
 }
