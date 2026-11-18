@@ -100,6 +100,9 @@ function renderGroupedMoney(el, list, field, {signColor=false}={}){
 }
 
 function val(a,k){return a.accountData?.[k]}
+function closedProfit(a){const raw=val(a,'closed_profit_json');if(raw&&typeof raw==='object')return raw;try{return JSON.parse(raw||'{}')}catch{return {}}}
+function profitFor(a,k){const h=closedProfit(a);if(k==='custom')return h.customFrom===fromDate&&h.customTo===toDate?Number(h.custom):NaN;return h[k]===undefined?NaN:Number(h[k])}
+function renderProfitValues(el,list,getter){el.replaceChildren();const totals=new Map();for(const a of list){const c=currency(a)||'Unknown',n=Number(getter(a));if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size){el.textContent='—';return}for(const [c,n] of [...totals.entries()].sort((a,b)=>a[0].localeCompare(b[0]))){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=money(n,c==='Unknown'?'':c);el.append(span)}}
 
 function parseServerTime(value){
   if(!value)return NaN;
@@ -186,14 +189,17 @@ function setPeriod(p){
   $('dateTo').value=toDate;
   $('profitPeriodLabel').textContent='PROFIT · '+p.replace('_',' ').toUpperCase();
   render();
+  requestLiveSnapshots();
 }
 
 function dateChanged(){
   fromDate=$('dateFrom').value;
   toDate=$('dateTo').value;
   document.querySelectorAll('.period').forEach(b=>b.classList.remove('active'));
+  period='custom';
   $('profitPeriodLabel').textContent='PROFIT · SELECTED DATES';
   render();
+  requestLiveSnapshots();
 }
 
 function addCell(tr,text,cls=''){
@@ -235,19 +241,12 @@ function render(){
   $('profitScope').textContent=selected?(selected.alias||selected.login):'all accounts';
   const sumByCurrency=(field)=>groupedTotals(usable,field);
   const pos=allPositions();
-  const closedAvailable=usable.some(a=>
-    val(a,'today_closed_profit')!==null&&val(a,'today_closed_profit')!==undefined
-  );
-
-  // Closed-trade history is not currently included in the Monitor EA payload.
-  // Keep these cards honest until the EA/Worker history-sync update is made.
-  $('profitSelected').textContent='—';
-  $('profitWeek').textContent='—';
-  $('profitMonth').textContent='—';
-  $('profitAll').textContent='—';
-  $('profitSelectedNote').textContent=closedAvailable?
-    'Historical totals require MT5 history sync':
-    'Closed-trade history not yet supplied by Monitor EA';
+  const selectedHistoryKey=period==='custom'?'custom':period==='this_week'?'thisWeek':period==='last_week'?'lastWeek':period==='this_month'?'thisMonth':period==='last_month'?'lastMonth':period;
+  renderProfitValues($('profitSelected'),selected?[selected]:usable,a=>profitFor(a,selectedHistoryKey));
+  renderProfitValues($('profitWeek'),selected?[selected]:usable,a=>profitFor(a,'thisWeek'));
+  renderProfitValues($('profitMonth'),selected?[selected]:usable,a=>profitFor(a,'thisMonth'));
+  renderProfitValues($('profitAll'),selected?[selected]:usable,a=>profitFor(a,'allTime'));
+  $('profitSelectedNote').textContent=period==='custom'?`Closed trading P/L · ${fromDate} to ${toDate} (Cambodia time)`:'Closed trading P/L · Cambodia time';
 
   renderGroupedMoney($('profitFloating'),selected?[selected]:usable,'floating_profit',{signColor:true});
   renderGroupedMoney($('totalBalance'),usable,'balance');
@@ -285,11 +284,7 @@ function render(){
 
     if(selectedAccountKey===key(a))tr.classList.add('selected');
     nameCell(tr,a,index+1,on);
-    // Closed-profit columns stay blank until MT5 history sync is implemented.
-    addCell(tr,'—');
-    addCell(tr,'—');
-    addCell(tr,'—');
-    addCell(tr,'—');
+    for(const k of ['today','thisWeek','thisMonth','allTime']){const n=profitFor(a,k);addCell(tr,money(n,cc),n>0?'positive':n<0?'negative':'neutral');}
     addCell(tr,money(d.floating_profit,cc),Number(d.floating_profit)>0?'positive':Number(d.floating_profit)<0?'negative':'neutral');
     tr.addEventListener('click',()=>selectAccount(a));
     $('accountRows').appendChild(tr);
@@ -414,11 +409,8 @@ function render(){
       }
       ftr.append(td);
     };
-    // Closed-profit history is not yet supplied, so do not invent totals.
-    addCell(ftr,'—','account-total-values');
-    addCell(ftr,'—','account-total-values');
-    addCell(ftr,'—','account-total-values');
-    addCell(ftr,'—','account-total-values');
+    const appendProfitTotals=(field)=>{const td=document.createElement('td');td.className='account-total-values';const totals=new Map();for(const a of usable){const c=currency(a)||'Unknown',n=profitFor(a,field);if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size)td.textContent='—';for(const [c,n] of totals){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=money(n,c==='Unknown'?'':c);td.append(span)}ftr.append(td)};
+    ['today','thisWeek','thisMonth','allTime'].forEach(appendProfitTotals);
     appendTotals('floating_profit');
     footer.append(ftr);
   }
@@ -505,7 +497,7 @@ let liveRefreshBusy=false;
 async function requestLiveSnapshots(){
   if(document.visibilityState!=='visible'||!accounts.length)return;
   for(const a of accounts){
-    try{await api('/api/client/active',{method:'POST',auth:a.token,body:'{}'});}
+    try{await api('/api/client/active',{method:'POST',auth:a.token,body:JSON.stringify({dateFrom:fromDate,dateTo:toDate})});}
     catch(err){a.activityError=err.message||'Activity request failed';}
   }
 }
