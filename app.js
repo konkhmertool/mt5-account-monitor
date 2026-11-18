@@ -101,11 +101,21 @@ function renderGroupedMoney(el, list, field, {signColor=false}={}){
 
 function val(a,k){return a.accountData?.[k]}
 
+function parseServerTime(value){
+  if(!value)return NaN;
+  const text=String(value).trim();
+  // D1 CURRENT_TIMESTAMP is UTC in "YYYY-MM-DD HH:mm:ss" format.
+  const normalized=/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(text)
+    ? text.replace(' ','T')+'Z'
+    : text;
+  const ms=Date.parse(normalized);
+  return Number.isFinite(ms)?ms:NaN;
+}
+
 function isOnline(a){
-  const t=val(a,'updated_at');
-  if(!t)return false;
-  const ms=new Date(String(t).replace(' ','T')+'Z').getTime();
-  return Number.isFinite(ms)&&Date.now()-ms<120000;
+  // Liveness comes from the EA heartbeat, not from the last full snapshot.
+  const ms=parseServerTime(val(a,'last_seen'));
+  return Number.isFinite(ms)&&Date.now()-ms>=-30000&&Date.now()-ms<120000;
 }
 
 async function api(path,opt={}){
@@ -488,6 +498,50 @@ async function restore(){
   $('systemStatus').textContent='Ready';
 }
 
+// A visible dashboard requests fresh MT5 snapshots. The Worker combines all
+// browser sessions into one account-level request, so multiple tabs/devices do
+// not create duplicate position uploads.
+let liveRefreshBusy=false;
+async function requestLiveSnapshots(){
+  if(document.visibilityState!=='visible'||!accounts.length)return;
+  for(const a of accounts){
+    try{await api('/api/client/active',{method:'POST',auth:a.token,body:'{}'});}
+    catch(err){a.activityError=err.message||'Activity request failed';}
+  }
+}
+
+// Read snapshots frequently enough to show the next EA upload without relying
+// on a page reload. Heartbeat-based online status remains independent of this.
+async function refreshVisibleAccounts(){
+  if(document.visibilityState!=='visible'||liveRefreshBusy||!accounts.length)return;
+  liveRefreshBusy=true;
+  try{
+    for(const a of accounts){
+      try{await fetchAccount(a);}
+      catch(err){a.lastFetchError=err.message||'Unable to refresh account';}
+    }
+    render();
+  }finally{liveRefreshBusy=false;}
+}
+
+function startLiveDashboard(){
+  const activate=()=>{
+    if(document.visibilityState!=='visible')return;
+    requestLiveSnapshots();
+    refreshVisibleAccounts();
+  };
+  document.addEventListener('visibilitychange',activate);
+  activate();
+  // Dashboard activity heartbeat: 15 seconds while visible only.
+  setInterval(()=>{
+    if(document.visibilityState==='visible')requestLiveSnapshots();
+  },15000);
+  // Poll snapshots/heartbeats so positions and online dots update automatically.
+  setInterval(()=>{
+    if(document.visibilityState==='visible')refreshVisibleAccounts();
+  },5000);
+}
+
 function deviceId(){
   let v=localStorage.getItem(DEVICE_KEY);
   if(!v){
@@ -616,4 +670,4 @@ $('addAccountForm').addEventListener('submit',async e=>{
 
 addAccountActionStyles();
 setPeriod('today');
-restore();
+restore().then(startLiveDashboard);
