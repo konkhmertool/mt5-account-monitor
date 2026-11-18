@@ -37,8 +37,8 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 .account-total-row .account-total-label{color:var(--yellow);text-align:left!important}
 .account-total-row .account-total-values{color:var(--green);text-align:right}
 .account-total-row .account-total-status{color:var(--muted);font-size:10px}
-.profit-card b .currency-total,.total-card b .currency-total{font-size:inherit}
-.total-card b .currency-total{font-size:17px}
+.profit-card b .currency-total,.total-card b .currency-total{font-size:inherit;}
+.total-card b .currency-total{font-size:17px;color:#fff}
 .profit-card b .currency-total{font-size:22px}
 .period-tabs{border-radius:10px;overflow:hidden}
 .period{border-radius:0!important;min-width:0}
