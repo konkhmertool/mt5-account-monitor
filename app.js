@@ -134,6 +134,7 @@ function renderGroupedMoney(el, list, field, {signColor=false}={}){
 function val(a,k){return a.accountData?.[k]}
 function closedProfit(a){const raw=val(a,'closed_profit_json');if(raw&&typeof raw==='object')return raw;try{return JSON.parse(raw||'{}')}catch{return {}}}
 function profitFor(a,k){const h=closedProfit(a);if(k==='custom')return h.customFrom===fromDate&&h.customTo===toDate?Number(h.custom):NaN;return h[k]===undefined?NaN:Number(h[k])}
+function closedTradesFor(a,k){const h=closedProfit(a);if(k==='custom')return h.customFrom===fromDate&&h.customTo===toDate?Number(h.customTrades)||0:0;return Math.max(0,Number(h[k+'Trades'])||0)}
 function renderProfitValues(el,list,getter){el.replaceChildren();const totals=new Map();for(const a of list){const c=currency(a)||'Unknown',n=Number(getter(a));if(Number.isFinite(n))totals.set(c,(totals.get(c)||0)+n)}if(!totals.size){el.textContent='—';return}for(const [c,n] of sortCurrencyTotals(totals.entries())){const span=document.createElement('span');span.className='currency-total'+(n>0?' positive':n<0?' negative':' neutral');span.textContent=profitMoney(n,c==='Unknown'?'':c);el.append(span)}}
 
 function parseServerTime(value){
@@ -351,10 +352,17 @@ function render(){
     if(selectedAccountKey===key(a))tr.classList.add('selected');
     nameCell(tr,a,index+1,on);
     const selectedProfit=profitFor(a,selectedHistoryKey);
-    const addAccountProfitCell=(value)=>{const td=document.createElement('td');appendAccountTableMoney(td,value,cc);tr.append(td);};
-    addAccountProfitCell(selectedProfit);
+    const addAccountProfitCell=(value,metaText='')=>{
+      const td=document.createElement('td');
+      appendAccountTableMoney(td,value,cc);
+      if(metaText){const meta=document.createElement('small');meta.className='account-cell-meta';meta.textContent=metaText;td.append(meta)}
+      tr.append(td);
+    };
+    const completedTrades=closedTradesFor(a,selectedHistoryKey);
+    addAccountProfitCell(selectedProfit,`${completedTrades} Trade${completedTrades===1?'':'s'}`);
     for(const k of ['thisWeek','thisMonth','allTime'])addAccountProfitCell(profitFor(a,k));
-    addAccountProfitCell(d.floating_profit);
+    const openPositions=Math.max(0,Number(d.open_positions)||0);
+    addAccountProfitCell(d.floating_profit,`${openPositions} ${openPositions===1?'Position Open':'Positions Open'}`);
     tr.addEventListener('click',()=>selectAccount(a));
     $('accountRows').appendChild(tr);
 
