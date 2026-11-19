@@ -455,7 +455,6 @@ function render(){
     addWebControl('START EA','start_algo','web-start');
     addWebControl('STOP EA','stop_algo','web-stop');
     addWebControl('CLOSE ALL','close_all','web-close');
-    card.append(webControls);
 
     const metrics=document.createElement('div');
     metrics.className='account-metrics';
@@ -490,6 +489,9 @@ function render(){
     view.textContent='View positions →';
     foot.append(last,view);
     card.append(foot);
+
+    // Keep account controls at the very bottom, directly below Last update.
+    card.append(webControls);
 
     card.addEventListener('click',()=>selectAccount(a));
     card.addEventListener('keydown',e=>{
@@ -753,7 +755,7 @@ function addAccountActionStyles(){
       display:flex;
       flex-wrap:wrap;
       gap:6px;
-      margin:-4px 0 13px
+      margin:12px 0 0
     }
     .web-control-btn{
       border:1px solid #34465a;
