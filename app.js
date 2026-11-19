@@ -507,9 +507,15 @@ function render(){
     $('positionRows').innerHTML='<tr><td colspan="11" class="empty-row">No open positions.</td></tr>';
   }
 
+  // Give every account a stable, subtle row tint so its positions are easy to
+  // distinguish when several accounts are displayed together. The group index
+  // follows the saved account order and remains stable when filters change.
+  const positionGroupPaletteSize=5;
   for(const p of filtered){
     const tr=document.createElement('tr');
     const a=p._account;
+    const accountIndex=accounts.findIndex(item=>key(item)===key(a));
+    tr.classList.add(`position-account-group-${(Math.max(0,accountIndex))%positionGroupPaletteSize}`);
     addCell(tr,a.alias||a.login);
     addCell(tr,p.ticket);
     addCell(tr,p.symbol);
