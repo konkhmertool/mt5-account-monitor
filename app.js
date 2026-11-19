@@ -454,7 +454,7 @@ function render(){
     };
     addWebControl('START EA','start_algo','web-start');
     addWebControl('STOP EA','stop_algo','web-stop');
-    addWebControl('CLOSE ALL','close_all','web-close');
+    addWebControl('CLOSE ALL POSITIONS','close_all','web-close');
 
     const metrics=document.createElement('div');
     metrics.className='account-metrics';
