@@ -297,6 +297,23 @@ function nameCell(tr,a,index,on){
   return td;
 }
 
+async function sendAccountCommand(account, commandType){
+  const labels={start_algo:'START EA',stop_algo:'STOP EA',close_all:'CLOSE ALL POSITIONS'};
+  if(commandType==='close_all' && !window.confirm(
+    `Close ALL open positions in MT5 account ${account.login} (${account.server})? This includes manual trades and positions from every EA.`
+  )) return;
+  try{
+    const result=await api('/api/client/commands',{
+      method:'POST',
+      auth:account.token,
+      body:JSON.stringify({commandType})
+    });
+    window.alert(`${labels[commandType]} request sent. The MT5 Monitor EA will process it shortly.`);
+  }catch(err){
+    window.alert(`Unable to send ${labels[commandType]} request: ${err.message||'Request failed'}`);
+  }
+}
+
 function render(){
   const usable=accounts;
   const selected=usable.find(a=>key(a)===selectedAccountKey)||null;
@@ -421,6 +438,24 @@ function render(){
     actions.append(editBtn,removeBtn,pill);
     head.append(title,actions);
     card.append(head);
+
+    const webControls=document.createElement('div');
+    webControls.className='web-control-row';
+    const addWebControl=(label,commandType,extraClass='')=>{
+      const button=document.createElement('button');
+      button.type='button';
+      button.className='web-control-btn '+extraClass;
+      button.textContent=label;
+      button.addEventListener('click',e=>{
+        e.stopPropagation();
+        sendAccountCommand(a,commandType);
+      });
+      webControls.append(button);
+    };
+    addWebControl('START EA','start_algo','web-start');
+    addWebControl('STOP EA','stop_algo','web-stop');
+    addWebControl('CLOSE ALL','close_all','web-close');
+    card.append(webControls);
 
     const metrics=document.createElement('div');
     metrics.className='account-metrics';
@@ -714,6 +749,27 @@ function addAccountActionStyles(){
       border-color:#ff8585;
       color:#ffaaaa
     }
+    .web-control-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin:-4px 0 13px
+    }
+    .web-control-btn{
+      border:1px solid #34465a;
+      background:#202c3a;
+      color:#dce8f5;
+      border-radius:6px;
+      padding:6px 8px;
+      font:inherit;
+      font-size:10px;
+      font-weight:700;
+      cursor:pointer
+    }
+    .web-control-btn:hover{filter:brightness(1.2)}
+    .web-control-btn.web-start{color:#31d69a;border-color:#24634f}
+    .web-control-btn.web-stop{color:#ffbd55;border-color:#6c512c}
+    .web-control-btn.web-close{color:#ff7885;border-color:#713b43}
   `;
   document.head.appendChild(style);
 }
