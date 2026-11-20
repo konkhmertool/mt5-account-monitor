@@ -548,11 +548,19 @@ function render(){
   // distinguish when several accounts are displayed together. The group index
   // follows the saved account order and remains stable when filters change.
   const positionGroupPaletteSize=5;
-  for(const p of filtered){
+  for(let positionIndex=0;positionIndex<filtered.length;positionIndex++){
+    const p=filtered[positionIndex];
     const tr=document.createElement('tr');
     const a=p._account;
     const accountIndex=accounts.findIndex(item=>key(item)===key(a));
     tr.classList.add(`position-account-group-${(Math.max(0,accountIndex))%positionGroupPaletteSize}`);
+
+    // Mark the final visible position for each account group so its boundary
+    // is clearer, including when the account or symbol filter is changed.
+    const nextPosition=filtered[positionIndex+1];
+    if(!nextPosition || key(nextPosition._account)!==key(a)){
+      tr.classList.add('position-account-group-end');
+    }
     addCell(tr,a.alias||a.login);
     addCell(tr,p.ticket);
     addCell(tr,p.symbol);

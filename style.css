@@ -264,25 +264,43 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 }
 
 
-/* Subtle account-group tints in the Open Positions table.
-   Every position from the same account shares one readable background. */
-.positions-table tbody tr.position-account-group-0 td { background-color: #192d2b; }
-.positions-table tbody tr.position-account-group-1 td { background-color: #2b2a20; }
-.positions-table tbody tr.position-account-group-2 td { background-color: #29243a; }
-.positions-table tbody tr.position-account-group-3 td { background-color: #1d2b3a; }
-.positions-table tbody tr.position-account-group-4 td { background-color: #33272b; }
+/* Clearer account-group highlighting in the Open Positions table.
+   Rows within an account share a more visible tint; the final row has a
+   brighter background and a stronger separator to distinguish group boundaries. */
+.positions-table tbody tr.position-account-group-0 td { background-color: #203b37; }
+.positions-table tbody tr.position-account-group-1 td { background-color: #393722; }
+.positions-table tbody tr.position-account-group-2 td { background-color: #37304b; }
+.positions-table tbody tr.position-account-group-3 td { background-color: #26394b; }
+.positions-table tbody tr.position-account-group-4 td { background-color: #403035; }
 
-/* Keep group tint visible in the frozen Account column on mobile. */
+/* Final row of each account group: brighter fill and thicker bottom boundary. */
+.positions-table tbody tr.position-account-group-end td {
+  border-bottom: 2px solid #64798d;
+}
+.positions-table tbody tr.position-account-group-0.position-account-group-end td { background-color: #2b5149; }
+.positions-table tbody tr.position-account-group-1.position-account-group-end td { background-color: #504b2e; }
+.positions-table tbody tr.position-account-group-2.position-account-group-end td { background-color: #4b4065; }
+.positions-table tbody tr.position-account-group-3.position-account-group-end td { background-color: #34536d; }
+.positions-table tbody tr.position-account-group-4.position-account-group-end td { background-color: #5a3d46; }
+
+/* Keep group highlighting visible in the frozen Account column on mobile. */
 @media (max-width: 900px) {
-  .positions-table tbody tr.position-account-group-0 td:first-child { background-color: #192d2b; }
-  .positions-table tbody tr.position-account-group-1 td:first-child { background-color: #2b2a20; }
-  .positions-table tbody tr.position-account-group-2 td:first-child { background-color: #29243a; }
-  .positions-table tbody tr.position-account-group-3 td:first-child { background-color: #1d2b3a; }
-  .positions-table tbody tr.position-account-group-4 td:first-child { background-color: #33272b; }
+  .positions-table tbody tr.position-account-group-0 td:first-child { background-color: #203b37; }
+  .positions-table tbody tr.position-account-group-1 td:first-child { background-color: #393722; }
+  .positions-table tbody tr.position-account-group-2 td:first-child { background-color: #37304b; }
+  .positions-table tbody tr.position-account-group-3 td:first-child { background-color: #26394b; }
+  .positions-table tbody tr.position-account-group-4 td:first-child { background-color: #403035; }
+
+  .positions-table tbody tr.position-account-group-0.position-account-group-end td:first-child { background-color: #2b5149; }
+  .positions-table tbody tr.position-account-group-1.position-account-group-end td:first-child { background-color: #504b2e; }
+  .positions-table tbody tr.position-account-group-2.position-account-group-end td:first-child { background-color: #4b4065; }
+  .positions-table tbody tr.position-account-group-3.position-account-group-end td:first-child { background-color: #34536d; }
+  .positions-table tbody tr.position-account-group-4.position-account-group-end td:first-child { background-color: #5a3d46; }
 }
 
-.positions-table tbody tr.position-account-group-0:hover td { background-color: #203b37; }
-.positions-table tbody tr.position-account-group-1:hover td { background-color: #393722; }
-.positions-table tbody tr.position-account-group-2:hover td { background-color: #37304b; }
-.positions-table tbody tr.position-account-group-3:hover td { background-color: #26394b; }
-.positions-table tbody tr.position-account-group-4:hover td { background-color: #403035; }
+/* Hover remains slightly brighter than the normal group background. */
+.positions-table tbody tr.position-account-group-0:hover td { background-color: #31564f; }
+.positions-table tbody tr.position-account-group-1:hover td { background-color: #4b482d; }
+.positions-table tbody tr.position-account-group-2:hover td { background-color: #494064; }
+.positions-table tbody tr.position-account-group-3:hover td { background-color: #35536c; }
+.positions-table tbody tr.position-account-group-4:hover td { background-color: #523d45; }
