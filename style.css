@@ -275,7 +275,7 @@ button,input{font:inherit}.topbar{height:44px;border-bottom:1px solid var(--line
 
 /* Final row of each account group: same fill as sibling rows; only the bottom separator changes. */
 .positions-table tbody tr.position-account-group-end td {
-  border-bottom: 2px solid #64798d;
+  border-bottom: 1px solid #64798d;
 }
 
 /* Keep group highlighting visible in the frozen Account column on mobile. */
