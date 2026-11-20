@@ -654,7 +654,23 @@ async function restore(){
     }
   }
 
-  accounts=merge(saved,refreshed);
+    // Apply startup refreshes only to accounts that are STILL in the live list.
+  // The list may have changed while the network requests above were running:
+  // a user may have added, edited, or removed an account in the meantime.
+  // Never rebuild from the stale startup snapshot, or a newly added account
+  // could be overwritten (and a deliberately removed account could return).
+  for(const fresh of refreshed){
+    const current=accounts.find(a=>
+      (a.token&&fresh.token&&a.token===fresh.token)||
+      (a.login&&fresh.login&&a.login===fresh.login&&a.server===fresh.server)
+    );
+    if(!current)continue;
+    current.accountData={...(current.accountData||{}),...(fresh.accountData||{})};
+    current.login=fresh.login||current.login;
+    current.server=fresh.server||current.server;
+    if(!current.alias)current.alias=current.login;
+    current.lastFetchError=fresh.lastFetchError||'';
+  }
   try{
     save();
   }catch(err){
