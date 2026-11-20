@@ -770,7 +770,7 @@ function addAccountActionStyles(){
       background:#202c3a;
       color:#dce8f5;
       border-radius:6px;
-      padding:6px 8px;
+      padding:5px 5px;
       font:inherit;
       font-size:10px;
       font-weight:700;
