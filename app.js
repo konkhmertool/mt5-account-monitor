@@ -1,4 +1,3 @@
-
 'use strict';
 const API_BASE='https://monitor.mt5dashboard.workers.dev';
 const ACCOUNTS_KEY='mab_kaakoo_paired_accounts_v1';
@@ -10,6 +9,26 @@ let accounts=[],selectedAccountKey=null,period='today',fromDate='',toDate='';
 const BACKUP_KEY='mab_kaakoo_paired_accounts_backup_v1';
 const KNOWN_ACCOUNT_KEYS=[ACCOUNTS_KEY,BACKUP_KEY,'mab_kaakoo_accounts_v1','mab_kaakoo_accounts','mt5_monitor_accounts','mt5Accounts'];
 
+const DEBUG_ACCOUNTS=true;
+function debugLog(label,data={}){
+  if(!DEBUG_ACCOUNTS)return;
+  console.groupCollapsed(`%c[MT5 DEBUG] ${new Date().toLocaleTimeString()} — ${label}`,'color:#00aaff;font-weight:bold');
+  console.log(data);
+  console.trace('Call location');
+  console.groupEnd();
+}
+function accountInfo(list){
+  return (list||[]).map(a=>({login:a.login||'(missing login)',server:a.server||'(missing server)',alias:a.alias||'',tokenPresent:Boolean(a.token)}));
+}
+function storageSnapshot(){
+  const result={};
+  for(const k of KNOWN_ACCOUNT_KEYS){
+    try{result[k]=accountInfo(parseAccountList(localStorage.getItem(k)));}
+    catch(err){result[k]={error:err.message};}
+  }
+  return result;
+}
+
 function parseAccountList(raw){
   try{
     const x=JSON.parse(raw||'[]');
@@ -19,13 +38,15 @@ function parseAccountList(raw){
 
 function readSaved(){
   let saved=[];
+  debugLog('STORAGE READ — START',storageSnapshot());
   for(const k of KNOWN_ACCOUNT_KEYS){
-    saved=merge(saved,parseAccountList(localStorage.getItem(k)));
+    const list=parseAccountList(localStorage.getItem(k));
+    debugLog('STORAGE READ — KEY',{key:k,accountCount:list.length,accounts:accountInfo(list)});
+    saved=merge(saved,list);
   }
   const old=localStorage.getItem(LEGACY_KEY);
-  if(old&&!saved.some(v=>v.token===old)){
-    saved.push({token:old,alias:'',login:'',server:''});
-  }
+  if(old&&!saved.some(v=>v.token===old))saved.push({token:old,alias:'',login:'',server:''});
+  debugLog('STORAGE READ — MERGED RESULT',{accountCount:saved.length,accounts:accountInfo(saved)});
   return saved;
 }
 
@@ -42,27 +63,35 @@ function merge(a,b){
   return out;
 }
 
-function save(){
-  // Persist the current list exactly as-is.
-  // Do not merge old storage here, or removed accounts may return.
+function save({allowRemoval=false}={}){
+  debugLog('SAVE — REQUESTED ACCOUNT LIST',{accountCount:accounts.length,accounts:accountInfo(accounts),storageBefore:storageSnapshot()});
   const unique=[];
   for(const a of accounts){
     if(!a||!a.token)continue;
-    const i=unique.findIndex(x=>
-      x.token===a.token||
-      (x.login&&a.login&&x.login===a.login&&x.server===a.server)
-    );
-    if(i<0)unique.push(a);
-    else unique[i]={...unique[i],...a};
+    const i=unique.findIndex(x=>x.token===a.token||(x.login&&a.login&&x.login===a.login&&x.server===a.server));
+    if(i<0)unique.push(a);else unique[i]={...unique[i],...a};
+  }
+  if(unique.length<accounts.length){
+    console.error('[MT5 DEBUG] SAVE BLOCKED — deduplication reduced account count',{before:accountInfo(accounts),after:accountInfo(unique)});
+    return false;
+  }
+  if(!allowRemoval){
+    let largestStoredCount=0;
+    for(const k of KNOWN_ACCOUNT_KEYS)largestStoredCount=Math.max(largestStoredCount,parseAccountList(localStorage.getItem(k)).length);
+    if(unique.length<largestStoredCount){
+      console.error('[MT5 DEBUG] SAVE BLOCKED — would overwrite a larger saved list',{accountsBeingSaved:accountInfo(unique),largestStoredCount,storageBefore:storageSnapshot()});
+      return false;
+    }
   }
   accounts=unique;
   const payload=JSON.stringify(accounts);
-
-  // Keep recognized storage keys synchronized.
   for(const storageKey of KNOWN_ACCOUNT_KEYS){
-    localStorage.setItem(storageKey,payload);
+    try{localStorage.setItem(storageKey,payload);debugLog('STORAGE WRITE — SUCCESS',{key:storageKey,accountCount:accounts.length,accounts:accountInfo(accounts)});}
+    catch(err){console.error('[MT5 DEBUG] STORAGE WRITE — FAILED',{key:storageKey,error:err.message});throw err;}
   }
   localStorage.removeItem(LEGACY_KEY);
+  debugLog('SAVE — COMPLETED',{accountCount:accounts.length,accounts:accountInfo(accounts),storageAfter:storageSnapshot()});
+  return true;
 }
 
 function key(a){return a.login+'|'+a.server}
@@ -157,11 +186,19 @@ function isOnline(a){
 async function api(path,opt={}){
   const h={'Content-Type':'application/json',...(opt.headers||{})};
   if(opt.auth)h.Authorization='Bearer '+opt.auth;
-  const r=await fetch(API_BASE+path,{...opt,headers:h});
-  let d={};
-  try{d=await r.json()}catch{}
-  if(!r.ok)throw Error(d.error||'Request failed '+r.status);
-  return d;
+  const startedAt=Date.now();
+  debugLog('API REQUEST',{endpoint:API_BASE+path,method:opt.method||'GET',hasAuthorization:Boolean(opt.auth)});
+  try{
+    const r=await fetch(API_BASE+path,{...opt,headers:h});
+    let d={};
+    try{d=await r.json()}catch(err){debugLog('API RESPONSE — JSON PARSE ERROR',{endpoint:path,error:err.message});}
+    debugLog('API RESPONSE',{endpoint:path,status:r.status,ok:r.ok,durationMs:Date.now()-startedAt,response:d});
+    if(!r.ok)throw Error(d.error||'Request failed '+r.status);
+    return d;
+  }catch(err){
+    console.error('[MT5 DEBUG] API REQUEST FAILED',{endpoint:path,durationMs:Date.now()-startedAt,error:err.message});
+    throw err;
+  }
 }
 
 function accountData(a){return a.accountData||{}}
@@ -226,7 +263,6 @@ function selectedPeriodColumnLabel(){
   const fmt=ymd=>new Intl.DateTimeFormat('en-US',{timeZone:'UTC',month:'short',day:'numeric',year:'numeric'}).format(new Date(ymd+'T00:00:00Z'));
   return fromDate===toDate?fmt(fromDate):`${fmt(fromDate)} – ${fmt(toDate)}`;
 }
-
 let quickPeriodRefreshTimer=null;
 async function refreshAfterPeriodChange(){
   await requestLiveSnapshots();
@@ -427,7 +463,7 @@ function render(){
         x.token!==a.token&&!(x.login===a.login&&x.server===a.server)
       );
       if(selectedAccountKey===key(a))selectedAccountKey=null;
-      save();
+      save({allowRemoval:true});
       render();
     });
 
@@ -481,6 +517,27 @@ function render(){
     metric('Symbol',d.symbol||'—');
     card.append(metrics);
 
+    const foot=document.createElement('div');
+    foot.className='account-card-foot';
+    const last=document.createElement('span');
+    last.textContent='Last update: '+(d.updated_at||'—');
+    const view=document.createElement('span');
+    view.textContent='View positions →';
+    foot.append(last,view);
+    card.append(foot);
+
+    // Keep account controls at the very bottom, directly below Last update.
+    card.append(webControls);
+
+    card.addEventListener('click',()=>selectAccount(a));
+    card.addEventListener('keydown',e=>{
+      if(e.key==='Enter'||e.key===' '){
+        e.preventDefault();
+        selectAccount(a);
+      }
+    });
+    $('accountCards').append(card);
+  });
     const foot=document.createElement('div');
     foot.className='account-card-foot';
     const last=document.createElement('span');
@@ -628,59 +685,51 @@ function selectAccount(a){
 }
 
 async function fetchAccount(a){
-  const r=await api('/api/client/account',{auth:a.token});
-  if(r.account){
-    a.accountData={...(a.accountData||{}),...r.account};
-  }
-  a.login=a.accountData?.account_login||a.login||r.account?.login;
-  a.server=a.accountData?.broker_server||a.server||r.account?.server;
-  if(!a.alias)a.alias=a.login;
-  a.lastFetchError='';
-  return a;
+  debugLog('ACCOUNT REFRESH — START',{account:accountInfo([a])[0]});
+  try{
+    const r=await api('/api/client/account',{auth:a.token});
+    debugLog('ACCOUNT REFRESH — API DATA',{requestedAccount:accountInfo([a])[0],returnedAccount:r.account||null});
+    if(r.account)a.accountData={...(a.accountData||{}),...r.account};
+    a.login=a.accountData?.account_login||a.login||r.account?.login;
+    a.server=a.accountData?.broker_server||a.server||r.account?.server;
+    if(!a.alias)a.alias=a.login;
+    a.lastFetchError='';
+    debugLog('ACCOUNT REFRESH — SUCCESS',{account:accountInfo([a])[0]});
+    return a;
+  }catch(err){debugLog('ACCOUNT REFRESH — FAILED',{account:accountInfo([a])[0],error:err.message});throw err;}
 }
 
 async function restore(){
   $('systemStatus').textContent='Restoring';
+  debugLog('RESTORE — BEGIN',{storage:storageSnapshot(),currentAccounts:accountInfo(accounts)});
   const saved=readSaved();
   accounts=merge(accounts,saved);
+  debugLog('RESTORE — AFTER STORAGE MERGE',{savedCount:saved.length,liveCount:accounts.length,saved:accountInfo(saved),live:accountInfo(accounts)});
   render();
-
   const refreshed=[];
   for(const a of saved){
-    try{
-      refreshed.push(await fetchAccount({...a}));
-    }catch(err){
-      refreshed.push({...a,lastFetchError:err.message||'Unable to refresh account'});
-    }
+    try{refreshed.push(await fetchAccount({...a}));}
+    catch(err){refreshed.push({...a,lastFetchError:err.message||'Unable to refresh account'});}
   }
-
-    // Apply startup refreshes only to accounts that are STILL in the live list.
-  // The list may have changed while the network requests above were running:
-  // a user may have added, edited, or removed an account in the meantime.
-  // Never rebuild from the stale startup snapshot, or a newly added account
-  // could be overwritten (and a deliberately removed account could return).
+  debugLog('RESTORE — API REFRESHES FINISHED',{refreshedCount:refreshed.length,refreshed:accountInfo(refreshed),liveBeforeApply:accountInfo(accounts)});
   for(const fresh of refreshed){
-    const current=accounts.find(a=>
-      (a.token&&fresh.token&&a.token===fresh.token)||
-      (a.login&&fresh.login&&a.login===fresh.login&&a.server===fresh.server)
-    );
-    if(!current)continue;
+    const current=accounts.find(a=>(a.token&&fresh.token&&a.token===fresh.token)||(a.login&&fresh.login&&a.login===fresh.login&&a.server===fresh.server));
+    if(!current){debugLog('RESTORE — REFRESHED ACCOUNT NOT FOUND IN LIVE LIST',{refreshedAccount:accountInfo([fresh]),liveAccounts:accountInfo(accounts)});continue;}
     current.accountData={...(current.accountData||{}),...(fresh.accountData||{})};
     current.login=fresh.login||current.login;
     current.server=fresh.server||current.server;
     if(!current.alias)current.alias=current.login;
     current.lastFetchError=fresh.lastFetchError||'';
   }
+  debugLog('RESTORE — BEFORE SAVE',{accountCount:accounts.length,accounts:accountInfo(accounts),storage:storageSnapshot()});
   try{
-    save();
-  }catch(err){
-    console.error('Account storage failed:',err);
-    $('systemStatus').textContent='Storage error';
-  }
+    const savedSuccessfully=save();
+    if(!savedSuccessfully){$('systemStatus').textContent='Save blocked — check console';debugLog('RESTORE — SAVE WAS BLOCKED',{accounts:accountInfo(accounts),storage:storageSnapshot()});render();return;}
+  }catch(err){console.error('[MT5 DEBUG] RESTORE — STORAGE ERROR',err);$('systemStatus').textContent='Storage error';render();return;}
+  debugLog('RESTORE — FINISHED',{accountCount:accounts.length,accounts:accountInfo(accounts),storage:storageSnapshot()});
   render();
   $('systemStatus').textContent='Ready';
 }
-
 // A visible dashboard requests fresh MT5 snapshots. The Worker combines all
 // browser sessions into one account-level request, so multiple tabs/devices do
 // not create duplicate position uploads.
